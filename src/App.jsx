@@ -4,7 +4,9 @@ import Debts from "./Views/Debts.jsx";
 import Expenses from "./Views/Expenses.jsx";
 import Assets from "./Views/Assets.jsx";
 import Scenarios from "./Views/Scenarios.jsx";
-import PartnerView from "./Views/PartnerView.jsx";
+import Suggestions from "./Views/Suggestions.jsx";
+import SummaryView from "./Views/SummaryView.jsx";
+import CostEstimator from "./Views/CostEstimator.jsx";
 import { calcAll, normalizeToMonthly } from "./calculations.js";
 
 const STORAGE_KEY = "debt_reality_v1";
@@ -183,28 +185,30 @@ const tabs = [
     "Expenses",
     "Assets",
     "Scenarios",
-    "Partner"
+    "Suggestions",
+    "Cost Estimator",
+    "Summary"
 ];
 
 export default function App() {
-  const [state, setState] = useState(loadState);
-  const [tab, setTab] = useState("Dashboard");
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    const [state, setState] = useState(loadState);
+    const [tab, setTab] = useState("Dashboard");
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
-  useEffect(() => {
-    function handleResize() {
-      setIsMobile(window.innerWidth <= 768);
-    }
+    useEffect(() => {
+        function handleResize() {
+            setIsMobile(window.innerWidth <= 768);
+        }
 
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
 
-  const calc = useMemo(() => calcAll(state), [state]);
+    const calc = useMemo(() => calcAll(state), [state]);
 
   function resetAll() {
     const ok = window.confirm("Clear all saved data?");
@@ -220,145 +224,147 @@ export default function App() {
     e.target.value = "";
   }
 
-  function renderTab() {
-    switch (tab) {
-      case "Dashboard":
-        return <Dashboard state={state} />;
-      case "Income":
-        return <IncomeView state={state} onUpdate={setState} />;
-      case "Debts":
-        return <Debts state={state} onUpdate={setState} />;
-      case "Expenses":
-        return <Expenses state={state} onUpdate={setState} />;
-      case "Assets":
-        return <Assets state={state} onUpdate={setState} />;
-      case "Scenarios":
-        return <Scenarios state={state} />;
-      case "Partner":
-        return <PartnerView state={state} />;
-      default:
-        return null;
+    function renderTab() {
+        switch (tab) {
+            case "Dashboard":
+                return <Dashboard state={state} />;
+            case "Income":
+                return <IncomeView state={state} onUpdate={setState} />;
+            case "Debts":
+                return <Debts state={state} onUpdate={setState} />;
+            case "Expenses":
+                return <Expenses state={state} onUpdate={setState} />;
+            case "Assets":
+                return <Assets state={state} onUpdate={setState} />;
+            case "Suggestions":
+                return <Suggestions state={state} />;
+            case "Scenarios":
+                return <Scenarios state={state} />;
+            case "Cost Estimator":
+                return <CostEstimator state={state} />;
+            case "Summary":
+                return <SummaryView state={state} />;
+        }
     }
-  }
 
-  return (
-    <div style={{ minHeight: "100vh", background: "#080b10", color: "#e2e8f0" }}>
-      <div
-        style={{
-          maxWidth: 1200,
-          margin: "0 auto",
-          padding: isMobile ? 14 : 20
-        }}
-      >
-        <h1
-          style={{
-            marginBottom: 10,
-            fontSize: isMobile ? 36 : 48,
-            lineHeight: 1.05
-          }}
-        >
-          Debt Reality Dashboard
-        </h1>
-
-        <div
-          style={{
-            marginBottom: 18,
-            color: "#94a3b8",
-            fontSize: isMobile ? 15 : 18,
-            lineHeight: 1.5
-          }}
-        >
-          Monthly income: ${calc.monthlyIncome.toFixed(2)} | Total debt: ${calc.totalDebt.toFixed(2)}
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(7, auto)",
-            gap: 10,
-            marginBottom: 16
-          }}
-        >
-          {tabs.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              style={{
-                padding: isMobile ? "12px 10px" : "10px 14px",
-                minHeight: 48,
-                borderRadius: 10,
-                border: "1px solid #334155",
-                background: tab === t ? "#f59e0b" : "#0f172a",
-                color: tab === t ? "#111827" : "#e2e8f0",
-                cursor: "pointer",
-                fontSize: isMobile ? 16 : 15,
-                fontWeight: 500
-              }}
+    return (
+        <div style={{ minHeight: "100vh", background: "#080b10", color: "#e2e8f0" }}>
+            <div
+                style={{
+                    maxWidth: 1200,
+                    margin: "0 auto",
+                    padding: isMobile ? 14 : 20
+                }}
             >
-              {t}
-            </button>
-          ))}
-        </div>
+                <h1
+                    style={{
+                        marginBottom: 10,
+                        fontSize: isMobile ? 36 : 48,
+                        lineHeight: 1.05
+                    }}
+                >
+                    Debt Reality Dashboard
+                </h1>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "repeat(3, auto)",
-            gap: 10,
-            marginBottom: 20
-          }}
-        >
-          <button
-            onClick={() => exportJSON(state)}
-            style={{
-              minHeight: 46,
-              borderRadius: 10,
-              border: "1px solid #334155",
-              background: "#0f172a",
-              color: "#e2e8f0",
-              fontSize: 16,
-              cursor: "pointer"
-            }}
-          >
-            Export JSON
-          </button>
+                <div
+                    style={{
+                        marginBottom: 18,
+                        color: "#94a3b8",
+                        fontSize: isMobile ? 15 : 18,
+                        lineHeight: 1.5
+                    }}
+                >
+                    Monthly income: ${calc.monthlyIncome.toFixed(2)} | Total debt: ${calc.totalDebt.toFixed(2)}
+                </div>
 
-          <label style={{ display: "block" }}>
-            <input type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
-            <span
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: 46,
-                padding: "0 12px",
-                border: "1px solid #334155",
-                borderRadius: 10,
-                cursor: "pointer",
-                background: "#0f172a",
-                color: "#e2e8f0",
-                fontSize: 16
-              }}
-            >
-              Import JSON
-            </span>
-          </label>
+                <div
+                    style={{
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(7, auto)",
+                        gap: 10,
+                        marginBottom: 16
+                    }}
+                >
+                    {tabs.map((t) => (
+                        <button
+                            key={t}
+                            onClick={() => setTab(t)}
+                            style={{
+                                padding: isMobile ? "12px 10px" : "10px 14px",
+                                minHeight: 48,
+                                borderRadius: 10,
+                                border: "1px solid #334155",
+                                background: tab === t ? "#f59e0b" : "#0f172a",
+                                color: tab === t ? "#111827" : "#e2e8f0",
+                                cursor: "pointer",
+                                fontSize: isMobile ? 16 : 15,
+                                fontWeight: 500
+                            }}
+                        >
+                            {t}
+                        </button>
+                    ))}
+                </div>
 
-          <button
-            onClick={resetAll}
-            style={{
-              minHeight: 46,
-              borderRadius: 10,
-              border: "1px solid #334155",
-              background: "#0f172a",
-              color: "#e2e8f0",
-              fontSize: 16,
-              cursor: "pointer"
-            }}
-          >
-            Reset All
-          </button>
-        </div>
+                <div
+                    style={{
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "1fr" : "repeat(3, auto)",
+                        gap: 10,
+                        marginBottom: 20
+                    }}
+                >
+                    <button
+                        onClick={() => exportJSON(state)}
+                        style={{
+                            minHeight: 46,
+                            borderRadius: 10,
+                            border: "1px solid #334155",
+                            background: "#0f172a",
+                            color: "#e2e8f0",
+                            fontSize: 16,
+                            cursor: "pointer"
+                        }}
+                    >
+                        Export JSON
+                    </button>
+
+                    <label style={{ display: "block" }}>
+                        <input type="file" accept=".json" onChange={handleImport} style={{ display: "none" }} />
+                        <span
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minHeight: 46,
+                                padding: "0 12px",
+                                border: "1px solid #334155",
+                                borderRadius: 10,
+                                cursor: "pointer",
+                                background: "#0f172a",
+                                color: "#e2e8f0",
+                                fontSize: 16
+                            }}
+                        >
+                            Import JSON
+                        </span>
+                    </label>
+
+                    <button
+                        onClick={resetAll}
+                        style={{
+                            minHeight: 46,
+                            borderRadius: 10,
+                            border: "1px solid #334155",
+                            background: "#0f172a",
+                            color: "#e2e8f0",
+                            fontSize: 16,
+                            cursor: "pointer"
+                        }}
+                    >
+                        Reset All
+                    </button>
+                </div>
 
         {renderTab()}
       </div>

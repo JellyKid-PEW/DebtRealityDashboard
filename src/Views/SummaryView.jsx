@@ -291,7 +291,7 @@ function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
 
 // ─── EMPTY STATE ──────────────────────────────────────────────────────────────
 
-function EmptyPartnerView() {
+function EmptySummaryView() {
   return (
     <div style={{
       display: "flex", flexDirection: "column", alignItems: "center",
@@ -318,7 +318,7 @@ function EmptyPartnerView() {
 
 // ─── MAIN EXPORT ──────────────────────────────────────────────────────────────
 
-export default function PartnerView({ state }) {
+export default function SummaryView({ state }) {
   const calc = useMemo(() => calcAll(state), [state]);
 
   const hasData =
@@ -326,7 +326,7 @@ export default function PartnerView({ state }) {
     (state.creditCards?.length ?? 0) > 0 ||
     (state.loans?.length ?? 0) > 0;
 
-  if (!hasData) return <EmptyPartnerView />;
+  if (!hasData) return <EmptySummaryView />;
 
   const {
     monthlyIncome,
@@ -371,7 +371,7 @@ export default function PartnerView({ state }) {
         letterSpacing: "0.16em", textTransform: "uppercase",
         marginBottom: 4,
       }}>
-        Household Summary · Partner View
+        Household Summary · Summary View
       </div>
 
       {/* ── PRIMARY BANNER ──────────────────────────────── */}

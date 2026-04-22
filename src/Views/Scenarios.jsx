@@ -1,824 +1,917 @@
-import { useState, useMemo } from "react";
-import { calcAll, calcNetDebtChange } from "../calculations.js";
-
-// ─── STYLE TOKENS ─────────────────────────────────────────────────────────────
-const mono = "'IBM Plex Mono', 'Courier New', monospace";
+import React, { useMemo, useState } from "react";
+import {
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    BarChart,
+    Bar,
+    Legend,
+} from "recharts";
+import { calcAll } from "../calculations.js";
 
 const t = {
-  bg0: "#080b10", bg1: "#0f1421", bg2: "#141926", bg3: "#1a2030",
-  border: "#1e293b", borderHi: "#334155", borderAmber: "#92400e",
-  muted: "#475569", subtle: "#64748b", body: "#94a3b8", bright: "#e2e8f0",
-  amber: "#f59e0b", amberDim: "#78350f", amberFaint: "#f59e0b11",
-  red: "#ef4444",   redDim: "#450a0a",   redFaint: "#ef444411",
-  green: "#22c55e", greenDim: "#052e16", greenFaint: "#22c55e11",
-  blue: "#60a5fa",  blueFaint: "#60a5fa11",
-  teal: "#2dd4bf",
+    bg0: "#080b10",
+    bg1: "#0f172a",
+    bg2: "#111827",
+    border: "#334155",
+    bright: "#e2e8f0",
+    body: "#cbd5e1",
+    muted: "#94a3b8",
+    subtle: "#64748b",
+    amber: "#f59e0b",
+    green: "#22c55e",
+    red: "#ef4444",
+    blue: "#38bdf8",
 };
-
-// ─── MATH HELPERS ─────────────────────────────────────────────────────────────
-
-/**
- * Months to pay off a balance given APR and monthly payment.
- * Returns Infinity if payment can't cover interest, or 0 if balance ≤ 0.
- */
-function payoffMonths(balance, apr, monthlyPayment) {
-  if (balance <= 0) return 0;
-  const rate = apr / 100 / 12;
-  if (rate === 0) {
-    return monthlyPayment > 0 ? Math.ceil(balance / monthlyPayment) : Infinity;
-  }
-  const interestPerMonth = balance * rate;
-  if (monthlyPayment <= interestPerMonth) return Infinity;
-  return Math.ceil(Math.log(monthlyPayment / (monthlyPayment - interestPerMonth)) / Math.log(1 + rate));
-}
-
-/**
- * Total interest paid over the life of a loan given months to payoff.
- */
-function totalInterestPaid(balance, monthlyPayment, months) {
-  if (!isFinite(months) || months <= 0) return Infinity;
-  return Math.max(0, monthlyPayment * months - balance);
-}
-
-/**
- * Monthly interest accruing on a balance at given APR.
- */
-function monthlyInterest(balance, apr) {
-  return balance * (apr / 100 / 12);
-}
-
-function fmtMoney(n, opts = {}) {
-  if (!isFinite(n)) return "—";
-  const abs = Math.abs(n);
-  return new Intl.NumberFormat("en-US", {
-    style: "currency", currency: "USD",
-    minimumFractionDigits: opts.cents ? 2 : 0,
-    maximumFractionDigits: opts.cents ? 2 : 0,
-  }).format(abs);
-}
-
-function fmtMonths(m) {
-  if (!isFinite(m) || m <= 0) return null;
-  if (m < 12) return `${Math.round(m)} month${m === 1 ? "" : "s"}`;
-  const yrs = Math.floor(m / 12);
-  const mos = Math.round(m % 12);
-  return mos > 0 ? `${yrs}yr ${mos}mo` : `${yrs} year${yrs === 1 ? "" : "s"}`;
-}
-
-function fmtDir(direction) {
-  return { increasing: "increasing ↑", flat: "roughly flat →", decreasing: "decreasing ↓" }[direction] ?? direction;
-}
-
-function dirColor(direction) {
-  return { increasing: t.red, flat: t.amber, decreasing: t.green }[direction] ?? t.muted;
-}
-
-// ─── PRIMITIVES ───────────────────────────────────────────────────────────────
-
-const inputStyle = {
-  fontFamily: mono, fontSize: 13,
-  background: t.bg0, border: `1px solid ${t.border}`,
-  borderRadius: 6, color: t.bright,
-  padding: "9px 12px", width: "100%", outline: "none",
-  transition: "border-color 0.15s, box-shadow 0.15s",
-};
-
-const labelStyle = {
-  fontFamily: mono, fontSize: 10, color: t.muted,
-  letterSpacing: "0.13em", textTransform: "uppercase",
-  display: "block", marginBottom: 5,
-};
-
-const hintStyle = {
-  fontFamily: mono, fontSize: 10, color: t.muted,
-  marginTop: 4, lineHeight: 1.5,
-};
-
-function Field({ label, hint, children }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
-      <label style={labelStyle}>{label}</label>
-      {children}
-      {hint && <span style={hintStyle}>{hint}</span>}
-    </div>
-  );
-}
-
-function NumberInput({ value, onChange, placeholder = "0" }) {
-  return (
-    <input
-      type="number"
-      min={0}
-      value={value === 0 ? "" : (value ?? "")}
-      placeholder={placeholder}
-      onChange={e => onChange(parseFloat(e.target.value) || 0)}
-      style={inputStyle}
-      onFocus={e => {
-        e.target.style.borderColor = t.amber;
-        e.target.style.boxShadow = `0 0 0 2px ${t.amber}22`;
-      }}
-      onBlur={e => {
-        e.target.style.borderColor = t.border;
-        e.target.style.boxShadow = "none";
-      }}
-    />
-  );
-}
-
-function SelectInput({ value, onChange, options, placeholder }) {
-  return (
-    <select
-      value={value ?? ""}
-      onChange={e => onChange(e.target.value)}
-      style={{ ...inputStyle, cursor: "pointer" }}
-      onFocus={e => {
-        e.target.style.borderColor = t.amber;
-        e.target.style.boxShadow = `0 0 0 2px ${t.amber}22`;
-      }}
-      onBlur={e => {
-        e.target.style.borderColor = t.border;
-        e.target.style.boxShadow = "none";
-      }}
-    >
-      {placeholder && <option value="">{placeholder}</option>}
-      {options.map(o => (
-        <option key={o.value} value={o.value}>{o.label}</option>
-      ))}
-    </select>
-  );
-}
-
-// ─── RESULT BLOCK ─────────────────────────────────────────────────────────────
-
-/**
- * A single insight line with an icon, colored value, and plain-English label.
- */
-function InsightLine({ icon, text, value, valueColor, sub }) {
-  return (
-    <div style={{
-      display: "flex", alignItems: "flex-start", gap: 10,
-      padding: "10px 0",
-      borderBottom: `1px solid ${t.border}`,
-    }}>
-      <span style={{ fontSize: 15, flexShrink: 0, lineHeight: 1.4, marginTop: 1 }}>{icon}</span>
-      <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 6 }}>
-          <span style={{
-            fontFamily: mono, fontSize: 13,
-            fontWeight: 700, color: valueColor ?? t.bright,
-            whiteSpace: "nowrap",
-          }}>{value}</span>
-          <span style={{ fontFamily: mono, fontSize: 12, color: t.body, lineHeight: 1.5 }}>{text}</span>
-        </div>
-        {sub && (
-          <div style={{ fontFamily: mono, fontSize: 11, color: t.subtle, marginTop: 3 }}>{sub}</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * A grouped result section with a header and insight lines.
- */
-function ResultSection({ title, accentColor, children, isEmpty }) {
-  if (isEmpty) return null;
-  return (
-    <div style={{
-      background: t.bg1,
-      border: `1px solid ${t.border}`,
-      borderLeft: `3px solid ${accentColor}`,
-      borderRadius: 8,
-      overflow: "hidden",
-      animation: "fadeSlide 0.2s ease",
-    }}>
-      <div style={{
-        padding: "10px 16px",
-        background: accentColor + "0d",
-        borderBottom: `1px solid ${t.border}`,
-      }}>
-        <span style={{
-          fontFamily: mono, fontSize: 10, fontWeight: 700,
-          color: accentColor, letterSpacing: "0.15em", textTransform: "uppercase",
-        }}>{title}</span>
-      </div>
-      <div style={{ padding: "2px 16px 6px" }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// ─── INPUT PANEL ──────────────────────────────────────────────────────────────
-
-function InputPanel({ inputs, setInputs, cards }) {
-  const set = (k) => (v) => setInputs(prev => ({ ...prev, [k]: v }));
-
-  const cardOptions = cards.map(c => ({
-    value: c.id,
-    label: `${c.name} — ${fmtMoney(c.balance)} @ ${c.apr}% APR`,
-  }));
-
-  return (
-    <div style={{
-      background: t.bg1,
-      border: `1px solid ${t.borderAmber}`,
-      borderRadius: 10,
-      overflow: "hidden",
-    }}>
-      {/* Header */}
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        padding: "12px 18px",
-        background: t.amberFaint,
-        borderBottom: `1px solid ${t.border}`,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 14 }}>🧪</span>
-          <span style={{
-            fontFamily: mono, fontSize: 11, fontWeight: 700,
-            color: t.amber, letterSpacing: "0.15em", textTransform: "uppercase",
-          }}>
-            Scenario Inputs
-          </span>
-        </div>
-        <button
-          onClick={() => setInputs(BLANK)}
-          style={{
-            fontFamily: mono, fontSize: 10, fontWeight: 700,
-            background: t.bg2, border: `1px solid ${t.border}`,
-            color: t.muted, borderRadius: 5,
-            padding: "4px 10px", cursor: "pointer",
-            letterSpacing: "0.08em", transition: "color 0.12s, border-color 0.12s",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = t.bright; e.currentTarget.style.borderColor = t.borderHi; }}
-          onMouseLeave={e => { e.currentTarget.style.color = t.muted; e.currentTarget.style.borderColor = t.border; }}
-        >
-          ↺ Reset
-        </button>
-      </div>
-
-      {/* Fields */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-        gap: 16, padding: "18px",
-      }}>
-        {/* Target card — always first so other fields make context */}
-        <div style={{ gridColumn: "1 / -1" }}>
-          <Field
-            label="Target Card (optional)"
-            hint="Most scenarios apply to this card. Leave blank to use your highest-balance card."
-          >
-            <SelectInput
-              value={inputs.cardId}
-              onChange={set("cardId")}
-              options={cardOptions}
-              placeholder={cards.length === 0 ? "No cards added yet" : "— select a card —"}
-            />
-          </Field>
-        </div>
-
-        <Field label="Purchase Amount ($)" hint="What would this purchase add to the card?">
-          <NumberInput value={inputs.purchaseAmount} onChange={set("purchaseAmount")} placeholder="e.g. 500" />
-        </Field>
-
-        <Field label="Lump Sum Payment ($)" hint="One-time extra payment toward the card.">
-          <NumberInput value={inputs.lumpSum} onChange={set("lumpSum")} placeholder="e.g. 1000" />
-        </Field>
-
-        <Field label="Monthly Payment Increase ($)" hint="Extra you could pay every month going forward.">
-          <NumberInput value={inputs.extraMonthly} onChange={set("extraMonthly")} placeholder="e.g. 100" />
-        </Field>
-
-        <Field label="Asset Sale Amount ($)" hint="Proceeds from selling something — applied to total debt.">
-          <NumberInput value={inputs.assetSale} onChange={set("assetSale")} placeholder="e.g. 3000" />
-        </Field>
-      </div>
-    </div>
-  );
-}
-
-// ─── SCENARIO CALCULATIONS ────────────────────────────────────────────────────
-
-function runScenario(inputs, state) {
-  const { creditCards = [], loans = [] } = state;
-
-  // Resolve target card
-  let card = inputs.cardId
-    ? creditCards.find(c => c.id === inputs.cardId)
-    : [...creditCards].sort((a, b) => b.balance - a.balance)[0];
-
-  const baseCalc  = calcAll(state);
-  const baseDir   = calcNetDebtChange(creditCards);
-
-  // ── Purchase impact ──────────────────────────────────────────────────────
-  let purchase = null;
-  if (inputs.purchaseAmount > 0 && card) {
-    const apr = card.promoApr || card.apr;
-    const newBalance = card.balance + inputs.purchaseAmount;
-    const payment = card.monthlyPayment || card.minPayment || 0;
-
-    const monthsBefore = payoffMonths(card.balance, apr, payment);
-    const monthsAfter  = payoffMonths(newBalance, apr, payment);
-    const intBefore    = totalInterestPaid(card.balance, payment, monthsBefore);
-    const intAfter     = totalInterestPaid(newBalance, payment, monthsAfter);
-
-    const extraInterest = isFinite(intAfter) && isFinite(intBefore) ? intAfter - intBefore : null;
-    const extraMonths   = isFinite(monthsAfter) && isFinite(monthsBefore)
-      ? Math.max(0, monthsAfter - monthsBefore) : null;
-
-    purchase = { card, newBalance, extraInterest, extraMonths, apr };
-  }
-
-  // ── Lump sum impact ──────────────────────────────────────────────────────
-  let lump = null;
-  if (inputs.lumpSum > 0 && card) {
-    const apr = card.promoApr || card.apr;
-    const payment = card.monthlyPayment || card.minPayment || 0;
-    const reducedBalance = Math.max(0, card.balance - inputs.lumpSum);
-
-    const monthsBefore = payoffMonths(card.balance, apr, payment);
-    const monthsAfter  = payoffMonths(reducedBalance, apr, payment);
-    const intBefore    = totalInterestPaid(card.balance, payment, monthsBefore);
-    const intAfter     = totalInterestPaid(reducedBalance, payment, monthsAfter);
-
-    const savedInterest = isFinite(intBefore) && isFinite(intAfter) ? intBefore - intAfter : null;
-    const savedMonths   = isFinite(monthsBefore) && isFinite(monthsAfter)
-      ? Math.max(0, monthsBefore - monthsAfter) : null;
-
-    lump = { card, reducedBalance, savedInterest, savedMonths, lumpApplied: Math.min(inputs.lumpSum, card.balance) };
-  }
-
-  // ── Extra monthly impact ──────────────────────────────────────────────────
-  let extra = null;
-  if (inputs.extraMonthly > 0 && card) {
-    const apr = card.promoApr || card.apr;
-    const basePay    = card.monthlyPayment || card.minPayment || 0;
-    const newPay     = basePay + inputs.extraMonthly;
-
-    const monthsBefore = payoffMonths(card.balance, apr, basePay);
-    const monthsAfter  = payoffMonths(card.balance, apr, newPay);
-    const intBefore    = totalInterestPaid(card.balance, basePay, monthsBefore);
-    const intAfter     = totalInterestPaid(card.balance, newPay, monthsAfter);
-
-    const savedInterest = isFinite(intBefore) && isFinite(intAfter) ? intBefore - intAfter : null;
-    const savedMonths   = isFinite(monthsBefore) && isFinite(monthsAfter)
-      ? Math.max(0, monthsBefore - monthsAfter) : null;
-
-    extra = { card, newPay, savedInterest, savedMonths };
-  }
-
-  // ── Asset sale impact ────────────────────────────────────────────────────
-  let asset = null;
-  if (inputs.assetSale > 0) {
-    const allBalances = [
-      ...creditCards.map(c => c.balance),
-      ...loans.map(l => l.balance),
-    ];
-    const totalDebt = allBalances.reduce((s, b) => s + b, 0);
-    const newTotalDebt = Math.max(0, totalDebt - inputs.assetSale);
-
-    // Monthly interest saved — proportionally reduce from highest interest first
-    const baseMonthlyInterest = creditCards.reduce(
-      (s, c) => s + monthlyInterest(c.balance, c.promoApr || c.apr), 0
-    );
-
-    // Apply sale to cards highest-APR first to estimate interest drop
-    let remaining = inputs.assetSale;
-    let newCardInterest = 0;
-    const sortedCards = [...creditCards].sort((a, b) => (b.promoApr || b.apr) - (a.promoApr || a.apr));
-    for (const c of sortedCards) {
-      const apr = c.promoApr || c.apr;
-      const applied = Math.min(remaining, c.balance);
-      const newBal = c.balance - applied;
-      newCardInterest += monthlyInterest(newBal, apr);
-      remaining -= applied;
-      if (remaining <= 0) break;
-    }
-    // Add back any cards not touched
-    const touchedIds = new Set(sortedCards.map(c => c.id));
-    for (const c of creditCards) {
-      if (!touchedIds.has(c.id)) newCardInterest += monthlyInterest(c.balance, c.promoApr || c.apr);
-    }
-
-    const interestDropPerMonth = baseMonthlyInterest - newCardInterest;
-    asset = { totalDebt, newTotalDebt, interestDropPerMonth };
-  }
-
-  // ── Combined net debt change ──────────────────────────────────────────────
-  // Model a modified state with scenario adjustments applied
-  const hasAny = inputs.purchaseAmount > 0 || inputs.lumpSum > 0
-    || inputs.extraMonthly > 0 || inputs.assetSale > 0;
-
-  let combined = null;
-  if (hasAny && card) {
-    // Build hypothetical credit cards
-    let hypoCards = creditCards.map(c => ({ ...c }));
-    const idx = hypoCards.findIndex(c => c.id === card.id);
-
-    if (idx !== -1) {
-      // Apply purchase
-      if (inputs.purchaseAmount > 0) {
-        hypoCards[idx] = {
-          ...hypoCards[idx],
-          balance: hypoCards[idx].balance + inputs.purchaseAmount,
-          monthlySpend: hypoCards[idx].monthlySpend + inputs.purchaseAmount / 12,
-        };
-      }
-      // Apply lump sum (one-time; doesn't change monthly payment — just reduces balance)
-      if (inputs.lumpSum > 0) {
-        hypoCards[idx] = {
-          ...hypoCards[idx],
-          balance: Math.max(0, hypoCards[idx].balance - inputs.lumpSum),
-        };
-      }
-      // Apply extra monthly payment
-      if (inputs.extraMonthly > 0) {
-        hypoCards[idx] = {
-          ...hypoCards[idx],
-          monthlyPayment: (hypoCards[idx].monthlyPayment || 0) + inputs.extraMonthly,
-        };
-      }
-    }
-
-    // Apply asset sale proportionally across all cards
-    if (inputs.assetSale > 0) {
-      let rem = inputs.assetSale;
-      hypoCards = hypoCards.map(c => {
-        if (rem <= 0) return c;
-        const applied = Math.min(rem, c.balance);
-        rem -= applied;
-        return { ...c, balance: c.balance - applied };
-      });
-    }
-
-    const hypoDir = calcNetDebtChange(hypoCards);
-    combined = {
-      baseDirAmount: baseDir.amount,
-      baseDirection: baseDir.direction,
-      hypoAmount: hypoDir.amount,
-      hypoDirection: hypoDir.direction,
-      directionChanged: baseDir.direction !== hypoDir.direction,
-    };
-  }
-
-  return { purchase, lump, extra, asset, combined, card, baseDir };
-}
-
-// ─── RESULTS PANEL ────────────────────────────────────────────────────────────
-
-function ResultsPanel({ results, inputs }) {
-  const { purchase, lump, extra, asset, combined, card, baseDir } = results;
-
-  const hasAnyInput = inputs.purchaseAmount > 0 || inputs.lumpSum > 0
-    || inputs.extraMonthly > 0 || inputs.assetSale > 0;
-
-  if (!hasAnyInput) {
-    return (
-      <div style={{
-        background: t.bg1, border: `1px solid ${t.border}`,
-        borderRadius: 10, padding: "36px 24px", textAlign: "center",
-      }}>
-        <div style={{ fontSize: 32, marginBottom: 12 }}>🔭</div>
-        <p style={{ fontFamily: mono, fontSize: 13, color: t.subtle, margin: 0, lineHeight: 1.7 }}>
-          Enter a value above to model a scenario.<br />
-          <span style={{ color: t.muted, fontSize: 11 }}>
-            Your real data is untouched — these are hypothetical projections only.
-          </span>
-        </p>
-      </div>
-    );
-  }
-
-  const noCardWarning = hasAnyInput && !card && (inputs.purchaseAmount > 0 || inputs.lumpSum > 0 || inputs.extraMonthly > 0);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-
-      {/* No-card warning */}
-      {noCardWarning && (
-        <div style={{
-          padding: "12px 16px",
-          background: t.amberFaint,
-          border: `1px solid ${t.borderAmber}`,
-          borderRadius: 8,
-          fontFamily: mono, fontSize: 12, color: t.amber,
-        }}>
-          ⚠ No credit cards found. Add a card first to model purchase and payment scenarios.
-        </div>
-      )}
-
-      {/* Purchase */}
-      <ResultSection
-        title="If You Make This Purchase"
-        accentColor={t.red}
-        isEmpty={!purchase}
-      >
-        {purchase && <>
-          <InsightLine
-            icon="💳"
-            value={fmtMoney(purchase.extraInterest)}
-            valueColor={t.red}
-            text={`in additional interest over the life of the card`}
-            sub={`Balance grows from ${fmtMoney(purchase.card.balance)} to ${fmtMoney(purchase.newBalance)} at ${purchase.apr}% APR`}
-          />
-          <InsightLine
-            icon="⏳"
-            value={purchase.extraMonths != null ? `~${fmtMonths(purchase.extraMonths)} longer` : "—"}
-            valueColor={t.red}
-            text={`to pay off ${purchase.card.name}`}
-            sub={purchase.extraMonths === 0 ? "Less than one additional month at current payment rate" : undefined}
-          />
-        </>}
-      </ResultSection>
-
-      {/* Lump sum */}
-      <ResultSection
-        title="If You Make a Lump Sum Payment"
-        accentColor={t.green}
-        isEmpty={!lump}
-      >
-        {lump && <>
-          <InsightLine
-            icon="📉"
-            value={`−${fmtMoney(lump.lumpApplied)}`}
-            valueColor={t.green}
-            text={`off your ${lump.card.name} balance`}
-            sub={`Balance drops from ${fmtMoney(lump.card.balance)} to ${fmtMoney(lump.reducedBalance)}`}
-          />
-          {lump.savedInterest != null && (
-            <InsightLine
-              icon="💰"
-              value={`~${fmtMoney(lump.savedInterest)} saved`}
-              valueColor={t.green}
-              text={`in interest you'll never pay`}
-            />
-          )}
-          {lump.savedMonths != null && lump.savedMonths > 0 && (
-            <InsightLine
-              icon="📅"
-              value={`~${fmtMonths(lump.savedMonths)} sooner`}
-              valueColor={t.green}
-              text={`payoff at your current monthly payment`}
-            />
-          )}
-          {lump.savedMonths === 0 && (
-            <InsightLine
-              icon="📅"
-              value="Less than 1 month"
-              valueColor={t.amber}
-              text="difference in payoff timeline — payment amount is the bigger lever here"
-            />
-          )}
-        </>}
-      </ResultSection>
-
-      {/* Extra monthly */}
-      <ResultSection
-        title="If You Increase Monthly Payments"
-        accentColor={t.teal}
-        isEmpty={!extra}
-      >
-        {extra && <>
-          <InsightLine
-            icon="📆"
-            value={extra.savedMonths != null ? `~${fmtMonths(extra.savedMonths)} sooner` : "—"}
-            valueColor={t.teal}
-            text={`payoff on ${extra.card.name} by paying ${fmtMoney(extra.newPay)}/mo instead`}
-          />
-          {extra.savedInterest != null && (
-            <InsightLine
-              icon="💰"
-              value={`~${fmtMoney(extra.savedInterest)} saved`}
-              valueColor={t.teal}
-              text="in interest over the life of the card"
-            />
-          )}
-        </>}
-      </ResultSection>
-
-      {/* Asset sale */}
-      <ResultSection
-        title="If You Apply Asset Sale Proceeds"
-        accentColor={t.blue}
-        isEmpty={!asset}
-      >
-        {asset && <>
-          <InsightLine
-            icon="🏷️"
-            value={`${fmtMoney(asset.totalDebt)} → ${fmtMoney(asset.newTotalDebt)}`}
-            valueColor={t.blue}
-            text="total debt after applying proceeds"
-          />
-          {asset.interestDropPerMonth > 0 && (
-            <InsightLine
-              icon="📉"
-              value={`−${fmtMoney(asset.interestDropPerMonth, { cents: true })}/mo`}
-              valueColor={t.blue}
-              text="less in monthly interest charges"
-              sub="Applied to highest-APR cards first"
-            />
-          )}
-        </>}
-      </ResultSection>
-
-      {/* Combined summary */}
-      {combined && (
-        <div style={{
-          background: combined.directionChanged
-            ? (combined.hypoDirection === "decreasing" ? t.greenFaint : t.redFaint)
-            : t.bg1,
-          border: `1px solid ${combined.directionChanged
-            ? (combined.hypoDirection === "decreasing" ? t.green + "44" : t.red + "44")
-            : t.border}`,
-          borderRadius: 10,
-          padding: "16px 18px",
-          animation: "fadeSlide 0.2s ease",
-        }}>
-          <div style={{
-            fontFamily: mono, fontSize: 10, fontWeight: 700,
-            color: t.amber, letterSpacing: "0.15em", textTransform: "uppercase",
-            marginBottom: 12,
-          }}>
-            Combined Net Effect
-          </div>
-
-          {/* Direction comparison */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-            marginBottom: 10,
-          }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: mono, fontSize: 10, color: t.muted, marginBottom: 4 }}>TODAY</div>
-              <div style={{
-                fontFamily: mono, fontSize: 14, fontWeight: 700,
-                color: dirColor(combined.baseDirection),
-                padding: "6px 12px", borderRadius: 6,
-                background: dirColor(combined.baseDirection) + "1a",
-                border: `1px solid ${dirColor(combined.baseDirection)}33`,
-              }}>
-                {fmtDir(combined.baseDirection)}
-              </div>
-              <div style={{ fontFamily: mono, fontSize: 11, color: t.subtle, marginTop: 3 }}>
-                {fmtMoney(combined.baseDirAmount)}/mo
-              </div>
-            </div>
-
-            <div style={{ fontFamily: mono, fontSize: 20, color: t.muted }}>→</div>
-
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontFamily: mono, fontSize: 10, color: t.muted, marginBottom: 4 }}>WITH SCENARIO</div>
-              <div style={{
-                fontFamily: mono, fontSize: 14, fontWeight: 700,
-                color: dirColor(combined.hypoDirection),
-                padding: "6px 12px", borderRadius: 6,
-                background: dirColor(combined.hypoDirection) + "1a",
-                border: `1px solid ${dirColor(combined.hypoDirection)}33`,
-              }}>
-                {fmtDir(combined.hypoDirection)}
-              </div>
-              <div style={{ fontFamily: mono, fontSize: 11, color: t.subtle, marginTop: 3 }}>
-                {fmtMoney(combined.hypoAmount)}/mo
-              </div>
-            </div>
-          </div>
-
-          {/* Direction change callout */}
-          {combined.directionChanged && (
-            <div style={{
-              fontFamily: mono, fontSize: 12,
-              color: combined.hypoDirection === "decreasing" ? t.green : t.red,
-              padding: "10px 12px",
-              background: combined.hypoDirection === "decreasing" ? t.greenDim : t.redDim,
-              borderRadius: 6, lineHeight: 1.6,
-              border: `1px solid ${combined.hypoDirection === "decreasing" ? t.green : t.red}33`,
-            }}>
-              {combined.hypoDirection === "decreasing"
-                ? `✓ This scenario would flip your debt from growing to shrinking each month.`
-                : `⚠ This scenario would flip your debt from shrinking to growing each month.`}
-            </div>
-          )}
-
-          {!combined.directionChanged && (
-            <div style={{
-              fontFamily: mono, fontSize: 11, color: t.subtle, lineHeight: 1.6,
-            }}>
-              Direction unchanged — debt would remain{" "}
-              <span style={{ color: dirColor(combined.hypoDirection) }}>{fmtDir(combined.hypoDirection)}</span>.
-              {" "}The monthly amount {combined.hypoAmount < combined.baseDirAmount ? "decreases" : "increases"} by{" "}
-              <span style={{ color: t.bright }}>{fmtMoney(Math.abs(combined.hypoAmount - combined.baseDirAmount))}</span>.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Disclaimer */}
-      <p style={{
-        fontFamily: mono, fontSize: 10, color: t.muted,
-        margin: "4px 0 0", lineHeight: 1.7,
-        borderTop: `1px solid ${t.border}`, paddingTop: 12,
-      }}>
-        These are estimates based on simplified payoff formulas. Actual results depend on your exact payment timing, minimum payment changes, and any fees not tracked here. Nothing on this screen changes your saved data.
-      </p>
-    </div>
-  );
-}
-
-// ─── BLANK STATE ──────────────────────────────────────────────────────────────
 
 const BLANK = {
-  cardId: "",
-  purchaseAmount: 0,
-  lumpSum: 0,
-  extraMonthly: 0,
-  assetSale: 0,
+    extraMonthly: 0,
+    reduceCardSpend: 0,
+    lumpSum: 0,
+    assetSale: 0,
+    strategy: "avalanche",
+    months: 24,
 };
 
-// ─── MAIN EXPORT ──────────────────────────────────────────────────────────────
+function fmtMoney(n) {
+    return `$${(Number(n) || 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+    })}`;
+}
+
+function fmtPct(n) {
+    return `${(Number(n) || 0).toFixed(1)}%`;
+}
+
+function debtSort(a, b, strategy) {
+    if (strategy === "snowball") {
+        if ((a.balance ?? 0) !== (b.balance ?? 0)) return (a.balance ?? 0) - (b.balance ?? 0);
+        return (b.apr ?? 0) - (a.apr ?? 0);
+    }
+    if ((a.apr ?? 0) !== (b.apr ?? 0)) return (b.apr ?? 0) - (a.apr ?? 0);
+    return (b.balance ?? 0) - (a.balance ?? 0);
+}
+
+function cloneDebts(state) {
+    const cards = (state.creditCards ?? []).map((c) => ({
+        id: c.id,
+        type: "card",
+        name: c.name || "Card",
+        balance: Number(c.balance) || 0,
+        apr: Number(c.promoApr) > 0 ? Number(c.promoApr) : (Number(c.apr) || 0),
+        minPayment: Number(c.minPayment) || 0,
+        monthlyPayment: Number(c.monthlyPayment) || Number(c.minPayment) || 0,
+        monthlySpend: Number(c.monthlySpend) || 0,
+    }));
+
+    const loans = (state.loans ?? []).map((l) => ({
+        id: l.id,
+        type: "loan",
+        name: l.name || "Loan",
+        balance: Number(l.balance) || 0,
+        apr: Number(l.apr) || 0,
+        minPayment: Number(l.monthlyPayment) || 0,
+        monthlyPayment: Number(l.monthlyPayment) || 0,
+        monthlySpend: 0,
+    }));
+
+    return [...cards, ...loans];
+}
+
+function allocateExtra(debts, extra, strategy) {
+    let remaining = Number(extra) || 0;
+    if (remaining <= 0) return debts;
+
+    const ordered = [...debts]
+        .filter((d) => d.balance > 0)
+        .sort((a, b) => debtSort(a, b, strategy));
+
+    for (const target of ordered) {
+        if (remaining <= 0) break;
+        const applied = Math.min(target.balance, remaining);
+        target.balance -= applied;
+        target._extraPrincipal = (target._extraPrincipal || 0) + applied;
+        remaining -= applied;
+    }
+
+    return debts;
+}
+
+function allocateLumpSum(debts, lump, strategy) {
+    let remaining = Number(lump) || 0;
+    if (remaining <= 0) return debts;
+
+    const ordered = [...debts]
+        .filter((d) => d.balance > 0)
+        .sort((a, b) => debtSort(a, b, strategy));
+
+    for (const target of ordered) {
+        if (remaining <= 0) break;
+        const applied = Math.min(target.balance, remaining);
+        target.balance -= applied;
+        target._lumpApplied = (target._lumpApplied || 0) + applied;
+        remaining -= applied;
+    }
+
+    return debts;
+}
+
+function runPortfolioSimulation(state, inputs) {
+    const debts = cloneDebts(state);
+    const months = Math.max(1, Number(inputs.months) || 24);
+    const strategy = inputs.strategy || "avalanche";
+    const extraMonthly = Math.max(0, Number(inputs.extraMonthly) || 0);
+    const reduceCardSpend = Math.max(0, Number(inputs.reduceCardSpend) || 0);
+    const lumpSum = Math.max(0, Number(inputs.lumpSum) || 0) + Math.max(0, Number(inputs.assetSale) || 0);
+
+    allocateLumpSum(debts, lumpSum, strategy);
+
+    const monthlySeries = [];
+    let totalInterestPaid = 0;
+    let totalPrincipalPaid = 0;
+    let totalNewCharges = 0;
+
+    for (let month = 1; month <= months; month++) {
+        let monthInterest = 0;
+        let monthPrincipal = 0;
+        let monthNewCharges = 0;
+
+        debts.forEach((d) => {
+            d._extraPrincipal = 0;
+        });
+
+        const cards = debts.filter((d) => d.type === "card" && d.balance > 0);
+        const totalCardSpend = cards.reduce((sum, c) => sum + (c.monthlySpend || 0), 0);
+        const spendReduction = Math.min(totalCardSpend, reduceCardSpend);
+
+        for (const card of cards) {
+            const proportion = totalCardSpend > 0 ? (card.monthlySpend || 0) / totalCardSpend : 0;
+            const reducedSpend = Math.max(0, (card.monthlySpend || 0) - spendReduction * proportion);
+            card.balance += reducedSpend;
+            monthNewCharges += reducedSpend;
+        }
+
+        for (const debt of debts) {
+            if (debt.balance <= 0) continue;
+            const interest = debt.balance * (debt.apr / 100) / 12;
+            debt.balance += interest;
+            monthInterest += interest;
+        }
+
+        for (const debt of debts) {
+            if (debt.balance <= 0) continue;
+            const pay = Math.min(debt.balance, debt.monthlyPayment || debt.minPayment || 0);
+            debt.balance -= pay;
+            monthPrincipal += pay;
+        }
+
+        allocateExtra(debts, extraMonthly, strategy);
+        monthPrincipal += debts.reduce((sum, d) => sum + (d._extraPrincipal || 0), 0);
+
+        const totalDebt = debts.reduce((sum, d) => sum + Math.max(0, d.balance), 0);
+
+        totalInterestPaid += monthInterest;
+        totalPrincipalPaid += monthPrincipal;
+        totalNewCharges += monthNewCharges;
+
+        monthlySeries.push({
+            month,
+            totalDebt,
+            interest: monthInterest,
+            principal: monthPrincipal,
+            newCharges: monthNewCharges,
+        });
+    }
+
+    const rankedDebts = [...debts].sort((a, b) => debtSort(a, b, strategy));
+
+    return {
+        months,
+        strategy,
+        endingDebt: monthlySeries[monthlySeries.length - 1]?.totalDebt ?? 0,
+        totalInterestPaid,
+        totalPrincipalPaid,
+        totalNewCharges,
+        monthlySeries,
+        rankedDebts,
+    };
+}
+
+function SectionTitle({ title, subtitle }) {
+    return (
+        <div style={{ marginBottom: 10 }}>
+            <div
+                style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: t.bright,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    marginBottom: 4,
+                }}
+            >
+                {title}
+            </div>
+            {subtitle && (
+                <div style={{ fontSize: 13, color: t.muted, lineHeight: 1.6 }}>
+                    {subtitle}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function SummaryCard({ label, value, sub, color = t.bright }) {
+    return (
+        <div
+            style={{
+                border: `1px solid ${t.border}`,
+                background: t.bg1,
+                borderRadius: 12,
+                padding: 14,
+            }}
+        >
+            <div
+                style={{
+                    fontSize: 12,
+                    color: t.muted,
+                    marginBottom: 6,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                }}
+            >
+                {label}
+            </div>
+            <div style={{ fontSize: 22, fontWeight: 700, color }}>{value}</div>
+            {sub && <div style={{ fontSize: 12, color: t.subtle, marginTop: 4, lineHeight: 1.5 }}>{sub}</div>}
+        </div>
+    );
+}
+
+function MiniLineChart({ currentSeries, scenarioSeries }) {
+    const data = currentSeries.map((row, i) => ({
+        month: `M${row.month}`,
+        current: Number(row.totalDebt.toFixed(2)),
+        scenario: Number((scenarioSeries[i]?.totalDebt ?? 0).toFixed(2)),
+    }));
+
+    return (
+        <div style={{ border: `1px solid ${t.border}`, background: t.bg1, borderRadius: 12, padding: 14, height: 360 }}>
+            <SectionTitle
+                title="Total Debt Over Time"
+                subtitle="Red is your current path. Green is the scenario path."
+            />
+            <ResponsiveContainer width="100%" height="85%">
+                <LineChart data={data}>
+                    <CartesianGrid stroke="#1e293b" />
+                    <XAxis dataKey="month" stroke={t.muted} />
+                    <YAxis stroke={t.muted} />
+                    <Tooltip
+                        contentStyle={{ background: t.bg2, border: `1px solid ${t.border}`, color: t.bright }}
+                        formatter={(value) => fmtMoney(value)}
+                    />
+                    <Legend />
+                    <Line type="monotone" dataKey="current" stroke={t.red} strokeWidth={3} dot={false} name="Current Path" />
+                    <Line type="monotone" dataKey="scenario" stroke={t.green} strokeWidth={3} dot={false} name="Scenario Path" />
+                </LineChart>
+            </ResponsiveContainer>
+        </div>
+    );
+}
+
+function LegendBar({ label, width, color }) {
+    return (
+        <div style={{ display: "grid", gridTemplateColumns: "72px 1fr", gap: 8, alignItems: "center" }}>
+            <div style={{ fontSize: 12, color: t.muted }}>{label}</div>
+            <div style={{ height: 10, background: "#1e293b", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ width, height: "100%", background: color }} />
+            </div>
+        </div>
+    );
+}
+
+function DebtBreakdown({ currentDebts }) {
+    const data = currentDebts.map((debt) => ({
+        name: debt.name,
+        balance: Number(debt.balance.toFixed(2)),
+        apr: Number(debt.apr.toFixed(1)),
+        type: debt.type,
+    }));
+
+    return (
+        <div style={{ border: `1px solid ${t.border}`, background: t.bg1, borderRadius: 12, padding: 14, height: 360 }}>
+            <SectionTitle
+                title="Where Your Debt Is Sitting Right Now"
+                subtitle="Longer bars mean larger balances."
+            />
+            <ResponsiveContainer width="100%" height="85%">
+                <BarChart data={data} layout="vertical" margin={{ left: 10, right: 10 }}>
+                    <CartesianGrid stroke="#1e293b" />
+                    <XAxis type="number" stroke={t.muted} />
+                    <YAxis type="category" dataKey="name" stroke={t.muted} width={90} />
+                    <Tooltip
+                        contentStyle={{ background: t.bg2, border: `1px solid ${t.border}`, color: t.bright }}
+                        formatter={(value, name, props) =>
+                            name === "balance"
+                                ? [fmtMoney(value), "Balance"]
+                                : [value, name]
+                        }
+                    />
+                    <Bar dataKey="balance" fill={t.amber} radius={[0, 6, 6, 0]} />
+                </BarChart>
+            </ResponsiveContainer>
+        </div>
+    );
+}
+
+function AllocationBars({ series }) {
+    const data = series.map((row) => ({
+        month: `M${row.month}`,
+        interest: Number(row.interest.toFixed(2)),
+        principal: Number(row.principal.toFixed(2)),
+        newCharges: Number(row.newCharges.toFixed(2)),
+    }));
+
+    return (
+        <div style={{ border: `1px solid ${t.border}`, background: t.bg1, borderRadius: 12, padding: 14, height: 380 }}>
+            <SectionTitle
+                title="How Monthly Money Is Moving"
+                subtitle="This shows interest cost, actual payoff, and new charges added back in."
+            />
+            <ResponsiveContainer width="100%" height="85%">
+                <BarChart data={data}>
+                    <CartesianGrid stroke="#1e293b" />
+                    <XAxis dataKey="month" stroke={t.muted} />
+                    <YAxis stroke={t.muted} />
+                    <Tooltip
+                        contentStyle={{ background: t.bg2, border: `1px solid ${t.border}`, color: t.bright }}
+                        formatter={(value) => fmtMoney(value)}
+                    />
+                    <Legend />
+                    <Bar dataKey="interest" stackId="a" fill={t.red} />
+                    <Bar dataKey="principal" stackId="a" fill={t.green} />
+                    <Bar dataKey="newCharges" stackId="a" fill={t.amber} />
+                </BarChart>
+            </ResponsiveContainer>
+        </div>
+    );
+}
+
+function BarRow({ label, value, maxValue, color }) {
+    const width = `${(Math.max(0, value) / maxValue) * 100}%`;
+    return (
+        <div style={{ display: "grid", gridTemplateColumns: "92px 1fr 96px", gap: 8, alignItems: "center" }}>
+            <div style={{ fontSize: 12, color: t.muted }}>{label}</div>
+            <div style={{ height: 10, background: "#1e293b", borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ width, height: "100%", background: color }} />
+            </div>
+            <div style={{ fontSize: 12, color: t.body, textAlign: "right" }}>{fmtMoney(value)}</div>
+        </div>
+    );
+}
+
+function Field({ label, help, children }) {
+    return (
+        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontSize: 13, color: t.body }}>{label}</span>
+            {children}
+            {help && <span style={{ fontSize: 12, color: t.subtle, lineHeight: 1.5 }}>{help}</span>}
+        </label>
+    );
+}
+
+const inputStyle = {
+    width: "100%",
+    minHeight: 46,
+    borderRadius: 10,
+    border: `1px solid ${t.border}`,
+    background: t.bg2,
+    color: t.bright,
+    padding: "10px 12px",
+    fontSize: 16,
+    outline: "none",
+    boxSizing: "border-box",
+};
+
+function NumberInput({ value, onChange }) {
+    return (
+        <input
+            type="number"
+            value={value || ""}
+            onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
+            style={{
+                ...inputStyle,
+                appearance: "textfield",
+                MozAppearance: "textfield",
+            }}
+        />
+    );
+}
+
+function ExplanationBox({ strategy }) {
+    return (
+        <div
+            style={{
+                border: `1px solid ${t.border}`,
+                background: t.bg1,
+                borderRadius: 12,
+                padding: 14,
+            }}
+        >
+            <SectionTitle
+                title="How To Read This Page"
+                subtitle="These are the meanings behind the visuals so the simulator is easier to interpret."
+            />
+
+            <div style={{ display: "grid", gap: 10, color: t.body, fontSize: 14, lineHeight: 1.7 }}>
+                <div>
+                    <strong style={{ color: t.bright }}>Current path</strong> means your debt continues based on the spending and payment habits already entered in the app.
+                </div>
+                <div>
+                    <strong style={{ color: t.bright }}>Scenario path</strong> means the same debts, but with the extra payment, spending reduction, lump sum, or asset sale you entered above.
+                </div>
+                <div>
+                    <strong style={{ color: t.bright }}>Strategy</strong> tells the simulator where extra money goes after regular monthly payments:
+                    {" "}
+                    {strategy === "avalanche"
+                        ? "Avalanche = highest APR first."
+                        : "Snowball = smallest balance first."}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function payoffOrderReason(strategy) {
+    return strategy === "avalanche"
+        ? "highest APR first"
+        : "smallest balance first";
+}
+
+function estimatePayoffMonths(state, inputs, maxMonths = 240) {
+    const result = runPortfolioSimulation(state, { ...inputs, months: maxMonths });
+    const hitZeroMonth = result.monthlySeries.find((m) => m.totalDebt <= 0.01)?.month;
+    return hitZeroMonth || maxMonths;
+}
+
+function improvementLabel(deltaDebt, deltaInterest) {
+    if (deltaDebt >= 10000 || deltaInterest >= 3000) return "Strong";
+    if (deltaDebt >= 3000 || deltaInterest >= 1000) return "Moderate";
+    if (deltaDebt > 0 || deltaInterest > 0) return "Minor";
+    return "None";
+}
+
+function firstTargetName(state, strategy) {
+    const debts = cloneDebts(state)
+        .filter((d) => d.balance > 0)
+        .sort((a, b) => debtSort(a, b, strategy));
+    return debts[0]?.name || "—";
+}
 
 export default function Scenarios({ state }) {
-  const [inputs, setInputs] = useState(BLANK);
+    const [inputs, setInputs] = useState(BLANK);
 
-  const cards = state.creditCards ?? [];
-  const hasCards = cards.length > 0;
+    const baseCalc = useMemo(() => calcAll(state), [state]);
 
-  // Auto-select highest-balance card if none selected
-  const effectiveInputs = useMemo(() => {
-    if (inputs.cardId || cards.length === 0) return inputs;
-    const topCard = [...cards].sort((a, b) => b.balance - a.balance)[0];
-    return { ...inputs, cardId: topCard?.id ?? "" };
-  }, [inputs, cards]);
+    const currentProjection = useMemo(
+        () =>
+            runPortfolioSimulation(state, {
+                ...BLANK,
+                strategy: inputs.strategy,
+                months: inputs.months,
+            }),
+        [state, inputs.strategy, inputs.months]
+    );
 
-  const results = useMemo(
-    () => runScenario(effectiveInputs, state),
-    [effectiveInputs, state]
-  );
+    const scenarioProjection = useMemo(
+        () => runPortfolioSimulation(state, inputs),
+        [state, inputs]
+    );
 
-  return (
-    <div style={{
-      display: "flex", flexDirection: "column", gap: 16,
-      maxWidth: 860, margin: "0 auto", padding: "0 0 48px",
-    }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&display=swap');
-        @keyframes fadeSlide {
-          from { opacity: 0; transform: translateY(4px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        input[type=number]::-webkit-inner-spin-button { opacity: 0.3; }
-        select option { background: #0f1421; color: #e2e8f0; }
-      `}</style>
+    const currentDebts = useMemo(() => cloneDebts(state), [state]);
 
-      {/* Page intro */}
-      <div style={{ marginBottom: 4 }}>
-        <h2 style={{
-          fontFamily: mono, fontSize: 13, fontWeight: 700,
-          color: t.bright, margin: "0 0 4px",
-          letterSpacing: "0.04em",
-        }}>
-          What-If Scenarios
-        </h2>
-        <p style={{ fontFamily: mono, fontSize: 11, color: t.muted, margin: 0, lineHeight: 1.7 }}>
-          Model decisions before making them. None of this changes your saved data.
-        </p>
-      </div>
+    const deltaDebt = currentProjection.endingDebt - scenarioProjection.endingDebt;
+    const deltaInterest = currentProjection.totalInterestPaid - scenarioProjection.totalInterestPaid;
+    const deltaCharges = currentProjection.totalNewCharges - scenarioProjection.totalNewCharges;
 
-      {/* No cards warning (non-blocking) */}
-      {!hasCards && (
-        <div style={{
-          padding: "11px 16px",
-          background: t.amberFaint,
-          border: `1px solid ${t.borderAmber}`,
-          borderRadius: 8,
-          fontFamily: mono, fontSize: 12, color: t.amber, lineHeight: 1.6,
-        }}>
-          Add at least one credit card in the Debts tab to unlock card-specific scenarios.
-          Asset sale scenarios still work without cards.
+    const isMobile = window.innerWidth <= 768;
+
+    const currentPayoffMonths = useMemo(
+        () =>
+            estimatePayoffMonths(state, {
+                ...BLANK,
+                strategy: inputs.strategy,
+            }),
+        [state, inputs.strategy]
+    );
+
+    const scenarioPayoffMonths = useMemo(
+        () => estimatePayoffMonths(state, inputs),
+        [state, inputs]
+    );
+
+    const monthsSaved = Math.max(0, currentPayoffMonths - scenarioPayoffMonths);
+    const improvement = improvementLabel(deltaDebt, deltaInterest);
+    const firstTarget = firstTargetName(state, inputs.strategy);
+    const routingReason = payoffOrderReason(inputs.strategy);
+
+    return (
+        <div
+            style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+                maxWidth: 980,
+                margin: "0 auto",
+                padding: "0 0 48px",
+            }}
+        >
+            <div>
+                <h2
+                    style={{
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: t.bright,
+                        margin: "0 0 4px",
+                        letterSpacing: "0.04em",
+                        textTransform: "uppercase",
+                    }}
+                >
+                    Portfolio Scenarios
+                </h2>
+                <p style={{ fontSize: 13, color: t.muted, margin: 0, lineHeight: 1.7 }}>
+                    This page compares your current debt path to an improved scenario using all cards and loans together.
+                </p>
+            </div>
+
+            <div
+                style={{
+                    border: `1px solid ${t.border}`,
+                    background: t.bg1,
+                    borderRadius: 12,
+                    padding: 14,
+                }}
+            >
+                <SectionTitle
+                    title="Scenario Controls"
+                    subtitle="Enter the changes you want to test. The simulator updates the full portfolio, not just one card."
+                />
+
+                <div
+                    style={{
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))",
+                        gap: 14,
+                    }}
+                >
+                    <Field
+                        label="Extra Monthly Payment ($)"
+                        help="Extra money added each month on top of your normal payments."
+                    >
+                        <NumberInput
+                            value={inputs.extraMonthly}
+                            onChange={(v) => setInputs({ ...inputs, extraMonthly: v })}
+                        />
+                    </Field>
+
+                    <Field
+                        label="Reduce Card Spending By ($ / month)"
+                        help="How much new card spending you want to cut each month."
+                    >
+                        <NumberInput
+                            value={inputs.reduceCardSpend}
+                            onChange={(v) => setInputs({ ...inputs, reduceCardSpend: v })}
+                        />
+                    </Field>
+
+                    <Field
+                        label="One-Time Lump Sum ($)"
+                        help="A one-time amount you can apply immediately."
+                    >
+                        <NumberInput
+                            value={inputs.lumpSum}
+                            onChange={(v) => setInputs({ ...inputs, lumpSum: v })}
+                        />
+                    </Field>
+
+                    <Field
+                        label="Asset Sale Applied To Debt ($)"
+                        help="Money raised from collectibles or other items sold."
+                    >
+                        <NumberInput
+                            value={inputs.assetSale}
+                            onChange={(v) => setInputs({ ...inputs, assetSale: v })}
+                        />
+                    </Field>
+
+                    <Field
+                        label="Payoff Strategy"
+                        help="This controls where extra money goes after normal payments."
+                    >
+                        <select
+                            value={inputs.strategy}
+                            onChange={(e) => setInputs({ ...inputs, strategy: e.target.value })}
+                            style={inputStyle}
+                        >
+                            <option value="avalanche">Avalanche — highest APR first</option>
+                            <option value="snowball">Snowball — smallest balance first</option>
+                        </select>
+                    </Field>
+
+                    <Field
+                        label="Projection Window"
+                        help="How many months forward you want the simulation to look."
+                    >
+                        <select
+                            value={inputs.months}
+                            onChange={(e) => setInputs({ ...inputs, months: Number(e.target.value) })}
+                            style={inputStyle}
+                        >
+                            <option value={12}>12 months</option>
+                            <option value={24}>24 months</option>
+                            <option value={36}>36 months</option>
+                            <option value={48}>48 months</option>
+                        </select>
+                    </Field>
+                </div>
+            </div>
+
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))",
+                    gap: 12,
+                }}
+            >
+                <SummaryCard
+                    label="Current Ending Debt"
+                    value={fmtMoney(currentProjection.endingDebt)}
+                    sub={`If nothing changes over the next ${inputs.months} months.`}
+                    color={t.red}
+                />
+                <SummaryCard
+                    label="Scenario Ending Debt"
+                    value={fmtMoney(scenarioProjection.endingDebt)}
+                    sub={`With your selected scenario and ${inputs.strategy} strategy.`}
+                    color={t.green}
+                />
+                <SummaryCard
+                    label="Debt Reduced vs Current"
+                    value={fmtMoney(deltaDebt)}
+                    sub="How much lower the scenario ends compared to your current path."
+                    color={deltaDebt >= 0 ? t.green : t.red}
+                />
+                <SummaryCard
+                    label="Interest Saved"
+                    value={fmtMoney(deltaInterest)}
+                    sub={`New charges reduced by ${fmtMoney(deltaCharges)} over the projection.`}
+                    color={deltaInterest >= 0 ? t.green : t.red}
+                />
+            </div>
+
+            <div
+                style={{
+                    border: `1px solid ${t.border}`,
+                    background: t.bg1,
+                    borderRadius: 12,
+                    padding: 14,
+                }}
+            >
+                <SectionTitle
+                    title="Scenario Takeaway"
+                    subtitle="This is the plain-English explanation of what your current change is actually doing."
+                />
+
+                <div
+                    style={{
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))",
+                        gap: 12,
+                        marginBottom: 14,
+                    }}
+                >
+                    <SummaryCard
+                        label="Extra Money Goes First To"
+                        value={firstTarget}
+                        sub={`Because this strategy targets ${routingReason}.`}
+                        color={t.amber}
+                    />
+                    <SummaryCard
+                        label="Time Saved"
+                        value={monthsSaved > 0 ? `${monthsSaved} months` : "No major change"}
+                        sub="Rough payoff acceleration compared to your current path."
+                        color={monthsSaved > 0 ? t.green : t.muted}
+                    />
+                    <SummaryCard
+                        label="Improvement Level"
+                        value={improvement}
+                        sub="A quick read on whether this change is small or meaningful."
+                        color={
+                            improvement === "Strong"
+                                ? t.green
+                                : improvement === "Moderate"
+                                    ? t.amber
+                                    : improvement === "Minor"
+                                        ? t.blue
+                                        : t.muted
+                        }
+                    />
+                </div>
+
+                <div
+                    style={{
+                        color: t.body,
+                        lineHeight: 1.8,
+                        fontSize: 14,
+                        display: "grid",
+                        gap: 8,
+                    }}
+                >
+                    <div>
+                        With an extra change of{" "}
+                        <strong style={{ color: t.bright }}>
+                            {fmtMoney(inputs.extraMonthly)}
+                        </strong>
+                        {inputs.reduceCardSpend > 0 && (
+                            <>
+                                {" "}and a spending reduction of{" "}
+                                <strong style={{ color: t.bright }}>
+                                    {fmtMoney(inputs.reduceCardSpend)}/month
+                                </strong>
+                            </>
+                        )}
+                        {inputs.lumpSum > 0 && (
+                            <>
+                                {" "}plus a one-time lump sum of{" "}
+                                <strong style={{ color: t.bright }}>
+                                    {fmtMoney(inputs.lumpSum)}
+                                </strong>
+                            </>
+                        )}
+                        {inputs.assetSale > 0 && (
+                            <>
+                                {" "}and asset sale proceeds of{" "}
+                                <strong style={{ color: t.bright }}>
+                                    {fmtMoney(inputs.assetSale)}
+                                </strong>
+                            </>
+                        )}
+                        , the simulator sends extra money first to{" "}
+                        <strong style={{ color: t.amber }}>{firstTarget}</strong>.
+                    </div>
+
+                    <div>
+                        Over the next{" "}
+                        <strong style={{ color: t.bright }}>{inputs.months} months</strong>,
+                        this lowers projected ending debt by{" "}
+                        <strong style={{ color: deltaDebt >= 0 ? t.green : t.red }}>
+                            {fmtMoney(deltaDebt)}
+                        </strong>
+                        {" "}and saves about{" "}
+                        <strong style={{ color: deltaInterest >= 0 ? t.green : t.red }}>
+                            {fmtMoney(deltaInterest)}
+                        </strong>
+                        {" "}in interest.
+                    </div>
+
+                    <div>
+                        Rough payoff estimate:
+                        {" "}
+                        <strong style={{ color: t.red }}>{currentPayoffMonths} months</strong>
+                        {" "}on your current path versus{" "}
+                        <strong style={{ color: t.green }}>{scenarioPayoffMonths} months</strong>
+                        {" "}with this scenario.
+                    </div>
+
+                    <div>
+                        Best next move:
+                        {" "}
+                        <strong style={{ color: t.bright }}>
+                            {inputs.extraMonthly > 0 || inputs.reduceCardSpend > 0 || inputs.lumpSum > 0 || inputs.assetSale > 0
+                                ? `keep ${inputs.strategy} and focus extra money on ${firstTarget}`
+                                : `enter an extra payment or spending reduction to see a meaningful difference`}
+                        </strong>
+                        .
+                    </div>
+                </div>
+            </div>
+
+            <ExplanationBox strategy={inputs.strategy} />
+
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1fr",
+                    gap: 12,
+                }}
+            >
+                <MiniLineChart
+                    currentSeries={currentProjection.monthlySeries}
+                    scenarioSeries={scenarioProjection.monthlySeries}
+                />
+                <DebtBreakdown currentDebts={currentDebts} />
+            </div>
+
+            <AllocationBars series={scenarioProjection.monthlySeries.slice(0, 6)} />
+
+            <div
+                style={{
+                    border: `1px solid ${t.border}`,
+                    background: t.bg1,
+                    borderRadius: 12,
+                    padding: 14,
+                }}
+            >
+                <SectionTitle
+                    title={`Ranked Payoff Order (${inputs.strategy})`}
+                    subtitle="This is the order extra money gets applied after your regular monthly payments."
+                />
+
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {scenarioProjection.rankedDebts.map((debt, i) => {
+                        const reason =
+                            inputs.strategy === "avalanche"
+                                ? "Targeted for highest APR."
+                                : "Targeted for smallest balance.";
+
+                        return (
+                            <div
+                                key={`${debt.type}-${debt.id}`}
+                                style={{
+                                    border: `1px solid ${t.border}`,
+                                    borderRadius: 10,
+                                    padding: 12,
+                                    background: t.bg2,
+                                }}
+                            >
+                                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                                    <div>
+                                        <div style={{ color: t.bright, fontSize: 14, fontWeight: 600 }}>
+                                            #{i + 1} · {debt.name}
+                                        </div>
+                                        <div style={{ color: t.subtle, fontSize: 12, marginTop: 2 }}>
+                                            {debt.type === "card" ? "Credit Card" : "Loan"} · {reason}
+                                        </div>
+                                    </div>
+
+                                    <div style={{ textAlign: isMobile ? "left" : "right" }}>
+                                        <div style={{ color: t.body, fontSize: 13 }}>{fmtMoney(debt.balance)} remaining</div>
+                                        <div style={{ color: t.muted, fontSize: 12 }}>
+                                            {fmtPct(debt.apr)} APR · {fmtMoney(debt.monthlyPayment)}/mo
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+
+            <div
+                style={{
+                    border: `1px solid ${t.border}`,
+                    background: t.bg1,
+                    borderRadius: 12,
+                    padding: 14,
+                }}
+            >
+                <SectionTitle
+                    title="Quick Read"
+                    subtitle="This is the fastest summary of what the simulator is saying."
+                />
+
+                <div style={{ color: t.body, lineHeight: 1.8, fontSize: 14 }}>
+                    <div>
+                        Live debt direction from your current app data:{" "}
+                        <strong
+                            style={{
+                                color:
+                                    baseCalc.netDebtChange.direction === "decreasing"
+                                        ? t.green
+                                        : baseCalc.netDebtChange.direction === "increasing"
+                                            ? t.red
+                                            : t.amber,
+                            }}
+                        >
+                            {baseCalc.netDebtChange.direction}
+                        </strong>
+                    </div>
+                    <div>
+                        Over the next {inputs.months} months, this scenario changes projected ending debt by{" "}
+                        <strong style={{ color: deltaDebt >= 0 ? t.green : t.red }}>
+                            {fmtMoney(deltaDebt)}
+                        </strong>.
+                    </div>
+                    <div>
+                        Strategy selected: <strong style={{ color: t.amber }}>{inputs.strategy}</strong>.
+                    </div>
+                </div>
+            </div>
         </div>
-      )}
-
-      {/* Two-column layout on wider screens */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "1fr",
-        gap: 16,
-      }}>
-        <style>{`
-          @media (min-width: 720px) {
-            .scenarios-grid { grid-template-columns: 1fr 1fr !important; align-items: start; }
-          }
-        `}</style>
-        <div className="scenarios-grid" style={{
-          display: "grid",
-          gridTemplateColumns: "1fr",
-          gap: 16,
-          alignItems: "start",
-        }}>
-          <InputPanel inputs={inputs} setInputs={setInputs} cards={cards} />
-          <ResultsPanel results={results} inputs={effectiveInputs} />
-        </div>
-      </div>
-    </div>
-  );
+    );
 }
