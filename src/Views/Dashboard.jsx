@@ -112,10 +112,10 @@ export default function Dashboard({ state }) {
         <div
           style={{
             ...valueStyle,
-            color: calc.netMonthly >= 0 ? "#22c55e" : "#ef4444"
+            color: calc.cashFlow >= 0 ? "#22c55e" : "#ef4444"
           }}
         >
-          ${calc.netMonthly.toFixed(2)}
+          ${calc.cashFlow.toFixed(2)}
         </div>
       </div>
 
@@ -132,7 +132,7 @@ export default function Dashboard({ state }) {
       </div>
 
       {/* SIMPLE WARNING */}
-      {calc.netMonthly < 0 && (
+      {calc.cashFlow < 0 && (
         <div
           style={{
             marginTop: 14,
