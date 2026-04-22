@@ -3,10 +3,9 @@ import Dashboard from "./Views/Dashboard.jsx";
 import Debts from "./Views/Debts.jsx";
 import Expenses from "./Views/Expenses.jsx";
 import Assets from "./Views/Assets.jsx";
-import Scenarios from "./Views/Scenarios.jsx";
-import Suggestions from "./Views/Suggestions.jsx";
 import SummaryView from "./Views/SummaryView.jsx";
 import CostEstimator from "./Views/CostEstimator.jsx";
+import Plan from "./Views/Plan.jsx";
 import { calcAll, normalizeToMonthly } from "./calculations.js";
 
 const STORAGE_KEY = "debt_reality_v1";
@@ -184,9 +183,8 @@ const tabs = [
     "Debts",
     "Expenses",
     "Assets",
-    "Scenarios",
-    "Suggestions",
     "Cost Estimator",
+    "Plan",
     "Summary"
 ];
 
@@ -236,12 +234,10 @@ export default function App() {
                 return <Expenses state={state} onUpdate={setState} />;
             case "Assets":
                 return <Assets state={state} onUpdate={setState} />;
-            case "Suggestions":
-                return <Suggestions state={state} />;
-            case "Scenarios":
-                return <Scenarios state={state} />;
             case "Cost Estimator":
                 return <CostEstimator state={state} />;
+            case "Plan":
+                return <Plan state={state} />;
             case "Summary":
                 return <SummaryView state={state} />;
         }
