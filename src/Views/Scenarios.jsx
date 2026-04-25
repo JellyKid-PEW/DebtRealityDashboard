@@ -205,8 +205,9 @@ function buildTrajectory(debts, extraPool, strategy, nowMonth, maxMonths = 72) {
             break;
         }
 
-        // Accrue interest
+        // New charges + interest
         for (const d of working) {
+            d.balance += Number(d.monthlySpend) || 0;
             d.balance += interestThisMonth(d.balance, effectiveApr(d, m - 1, nowMonth));
         }
 

@@ -237,6 +237,8 @@ function simulatePhase(targetGroup, remainingDebts, rollingPool, monthOffsetStar
 
         for (const debt of targets) {
             if (debt.balance <= 0) continue;
+            // New charges added before interest (cards only)
+            debt.balance += Number(debt.monthlySpend) || 0;
             const apr = effectiveAprAtMonth(debt, monthOffset, nowMonth);
             debt.balance += estimateInterestThisMonth(debt.balance, apr);
         }
@@ -316,18 +318,13 @@ function monthLabel(offset, nowMonth) {
 }
 
 function buildTrajectory(allDebts, strategy, rollingPoolStart, nowMonth, monthsToProject) {
-    if (!allDebts.length) return [];
+    if (!allDebts.length) return { data: [{ month: 0, label: "Now", total: 0 }], events: [] };
 
     let debts = allDebts.map(cloneDebt);
     let rollingPool = rollingPoolStart;
 
-    const data = [
-        {
-            month: 0,
-            label: "Now",
-            total: Math.round(sum(debts, (d) => d.balance)),
-        },
-    ];
+    const data = [{ month: 0, label: "Now", total: Math.round(sum(debts, (d) => d.balance)) }];
+    const events = []; // { month, label, names[] } debt clearance moments
 
     for (let m = 1; m <= monthsToProject; m++) {
         if (!debts.length) {
@@ -335,17 +332,17 @@ function buildTrajectory(allDebts, strategy, rollingPoolStart, nowMonth, monthsT
             break;
         }
 
-        // Accrue interest
+        // New charges + interest
         for (const d of debts) {
+            d.balance += Number(d.monthlySpend) || 0;
             const apr = effectiveAprAtMonth(d, m - 1, nowMonth);
             d.balance += estimateInterestThisMonth(d.balance, apr);
         }
 
-        // All minimums + rolling extra
+        // All minimums + rolling extra directed to focus debt
         const totalMinimums = sum(debts, (d) => d.minPayment || 0);
         let pool = totalMinimums + rollingPool;
 
-        // Pay in strategy order, focus debt gets extra first
         const ordered = sortDebtsForStrategy(debts, strategy, m - 1, nowMonth);
         for (const d of ordered) {
             if (pool <= 0) break;
@@ -354,9 +351,12 @@ function buildTrajectory(allDebts, strategy, rollingPoolStart, nowMonth, monthsT
             pool -= pay;
         }
 
-        // Cleared debts roll their minimums forward
+        // Record clearance events and roll full minimums forward
         const cleared = debts.filter((d) => d.balance <= 0.01);
-        rollingPool += sum(cleared, (d) => d.minPayment || 0);
+        if (cleared.length) {
+            events.push({ month: m, label: monthLabel(m, nowMonth), names: cleared.map((d) => d.name) });
+            rollingPool += sum(cleared, (d) => d.minPayment || 0);
+        }
         debts = debts.filter((d) => d.balance > 0.01);
 
         const total = Math.max(0, Math.round(sum(debts, (d) => d.balance)));
@@ -365,92 +365,49 @@ function buildTrajectory(allDebts, strategy, rollingPoolStart, nowMonth, monthsT
         if (total === 0) break;
     }
 
-    return data;
+    return { data, events };
 }
 
 // ─── CHART ────────────────────────────────────────────────────────────────────
 
-function DebtTrajectoryChart({ trajectory, totalDebt }) {
+function DebtTrajectoryChart({ trajectory, events = [], totalDebt }) {
     if (!trajectory.length) return null;
 
     const maxDebt = trajectory[0]?.total || totalDebt;
     const payoffPoint = trajectory.find((p) => p.total === 0);
     const finalPoint = trajectory[trajectory.length - 1];
 
-    // Space x-axis ticks sensibly
     const len = trajectory.length;
     const step = len > 48 ? 12 : len > 24 ? 6 : len > 12 ? 3 : 1;
     const ticks = trajectory.filter((p) => p.month === 0 || p.month % step === 0).map((p) => p.month);
 
+    // Alternate label positions so stacked clearance markers don't overlap
+    const labelPositions = ["insideTopLeft", "insideTopRight"];
+
     return (
-        <div
-            style={{
-                border: `1px solid ${t.border}`,
-                background: t.bg1,
-                borderRadius: 12,
-                padding: 16,
-            }}
-        >
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: 12,
-                    flexWrap: "wrap",
-                    gap: 8,
-                }}
-            >
+        <div style={{ border: `1px solid ${t.border}`, background: t.bg1, borderRadius: 12, padding: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
                 <div>
-                    <div
-                        style={{
-                            fontSize: 13,
-                            fontWeight: 700,
-                            color: t.bright,
-                            letterSpacing: "0.06em",
-                            textTransform: "uppercase",
-                            marginBottom: 2,
-                        }}
-                    >
+                    <div style={{ fontSize: 13, fontWeight: 700, color: t.bright, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 2 }}>
                         Debt Trajectory
                     </div>
                     <div style={{ fontSize: 12, color: t.muted }}>
-                        Projected total debt at current payments — updates on every import
+                        Projected payoff with rolling payments — each cleared debt accelerates the next
                     </div>
                 </div>
-
                 {payoffPoint ? (
-                    <div
-                        style={{
-                            background: "#052e16",
-                            border: "1px solid #166534",
-                            borderRadius: 8,
-                            padding: "6px 12px",
-                            fontSize: 13,
-                            color: t.green,
-                            fontWeight: 700,
-                        }}
-                    >
+                    <div style={{ background: "#052e16", border: "1px solid #166534", borderRadius: 8, padding: "6px 12px", fontSize: 13, color: t.green, fontWeight: 700 }}>
                         Debt-free in ~{payoffPoint.month} month{payoffPoint.month === 1 ? "" : "s"}
                     </div>
                 ) : (
-                    <div
-                        style={{
-                            background: "#1c1917",
-                            border: `1px solid ${t.border}`,
-                            borderRadius: 8,
-                            padding: "6px 12px",
-                            fontSize: 12,
-                            color: t.muted,
-                        }}
-                    >
+                    <div style={{ background: "#1c1917", border: `1px solid ${t.border}`, borderRadius: 8, padding: "6px 12px", fontSize: 12, color: t.muted }}>
                         {fmtMoney(finalPoint?.total)} remaining after {trajectory.length - 1} months
                     </div>
                 )}
             </div>
 
-            <ResponsiveContainer width="100%" height={220}>
-                <AreaChart data={trajectory} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
+            <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={trajectory} margin={{ top: 24, right: 8, left: 4, bottom: 0 }}>
                     <defs>
                         <linearGradient id="debtGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
@@ -467,9 +424,7 @@ function DebtTrajectoryChart({ trajectory, totalDebt }) {
                         tickLine={false}
                     />
                     <YAxis
-                        tickFormatter={(v) =>
-                            v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`
-                        }
+                        tickFormatter={(v) => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`}
                         tick={{ fill: t.muted, fontSize: 10 }}
                         axisLine={false}
                         tickLine={false}
@@ -477,29 +432,42 @@ function DebtTrajectoryChart({ trajectory, totalDebt }) {
                         width={52}
                     />
                     <Tooltip
-                        contentStyle={{
-                            background: "#0f172a",
-                            border: `1px solid ${t.border}`,
-                            borderRadius: 8,
-                            fontSize: 12,
-                            color: t.bright,
-                        }}
+                        contentStyle={{ background: "#0f172a", border: `1px solid ${t.border}`, borderRadius: 8, fontSize: 12, color: t.bright }}
                         formatter={(value) => [fmtMoney(value), "Total Debt"]}
-                        labelFormatter={(m) =>
-                            trajectory.find((p) => p.month === m)?.label ?? `Month ${m}`
-                        }
+                        labelFormatter={(m) => {
+                            const pt = trajectory.find((p) => p.month === m);
+                            const ev = events.find((e) => e.month === m);
+                            return ev
+                                ? `${pt?.label ?? ""} — ${ev.names.join(" + ")} cleared`
+                                : pt?.label ?? `Month ${m}`;
+                        }}
                     />
+
+                    {/* Today marker */}
                     <ReferenceLine
                         x={0}
                         stroke={t.amber}
                         strokeDasharray="4 3"
-                        label={{
-                            value: "Today",
-                            fill: t.amber,
-                            fontSize: 10,
-                            position: "insideTopRight",
-                        }}
+                        label={{ value: "Today", fill: t.amber, fontSize: 10, position: "insideTopRight" }}
                     />
+
+                    {/* Debt clearance markers — the snowball acceleration points */}
+                    {events.map((ev, i) => (
+                        <ReferenceLine
+                            key={ev.month}
+                            x={ev.month}
+                            stroke={t.green}
+                            strokeDasharray="3 3"
+                            strokeOpacity={0.7}
+                            label={{
+                                value: ev.names.join(" + ") + " ✓",
+                                fill: t.green,
+                                fontSize: 9,
+                                position: labelPositions[i % 2],
+                            }}
+                        />
+                    ))}
+
                     <Area
                         type="monotone"
                         dataKey="total"
@@ -511,6 +479,19 @@ function DebtTrajectoryChart({ trajectory, totalDebt }) {
                     />
                 </AreaChart>
             </ResponsiveContainer>
+
+            {/* Clearance legend below chart */}
+            {events.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
+                    {events.map((ev) => (
+                        <div key={ev.month} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.muted }}>
+                            <span style={{ color: t.green, fontWeight: 700 }}>✓</span>
+                            <span style={{ color: t.green }}>{ev.names.join(" + ")}</span>
+                            <span style={{ color: t.subtle }}>~{ev.label}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }
@@ -728,6 +709,11 @@ export default function Plan({ state }) {
         const extraPool = estimateExtraPool(debts);
         const phases = buildPhasesWithRollForward(debts, strategy, extraPool, nowMonth);
 
+        // Cards where spending >= payment — these can never be paid down under the plan
+        const spendProblemCards = debts.filter(
+            (d) => d.type === "card" && (d.monthlySpend || 0) >= (d.monthlyPayment || 0)
+        );
+
         const totalDebt = sum(debts, (d) => d.balance);
         const monthlyInterest = sum(
             debts,
@@ -740,7 +726,7 @@ export default function Plan({ state }) {
             ? estimateInterestThisMonth(firstTarget.balance, effectiveAprAtMonth(firstTarget, 0, nowMonth))
             : 0;
 
-        const trajectory = buildTrajectory(debts, strategy, extraPool, nowMonth, 72);
+        const { data: trajectoryData, events: trajectoryEvents } = buildTrajectory(debts, strategy, extraPool, nowMonth, 72);
 
         const oneYearPhases = [];
         let monthAccumulator = 0;
@@ -762,11 +748,13 @@ export default function Plan({ state }) {
             monthlyInterest,
             firstTarget,
             targetInterest,
-            trajectory,
+            trajectory: trajectoryData,
+            trajectoryEvents,
             oneYearPhases,
             oneYearNames,
             oneYearInterestRelief,
             oneYearMonthsCovered: monthAccumulator,
+            spendProblemCards,
         };
     }, [state]);
 
@@ -834,6 +822,28 @@ export default function Plan({ state }) {
                 <CompletedDebtsSection completed={model.completed} />
             )}
 
+            {/* Spend problem warning — cards where spending >= payment */}
+            {model.spendProblemCards.length > 0 && (
+                <div style={{ border: "1px solid #7f1d1d", background: "#1c0707", borderRadius: 12, padding: 16 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: t.red, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 8 }}>
+                        ⚠ Spending Exceeds Payment on {model.spendProblemCards.length} Card{model.spendProblemCards.length !== 1 ? "s" : ""}
+                    </div>
+                    <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
+                        {model.spendProblemCards.map((d) => (
+                            <div key={d.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#fca5a5", padding: "6px 10px", background: "#2d0a0a", borderRadius: 7 }}>
+                                <span>{d.name}</span>
+                                <span>
+                                    spending {fmtMoney(d.monthlySpend)}/mo · paying {fmtMoney(d.monthlyPayment || d.minPayment)}/mo
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                    <div style={{ fontSize: 13, color: "#f87171", lineHeight: 1.7 }}>
+                        These cards are growing faster than they're being paid down. The plan cannot reduce their balance until spending drops below the payment amount. Consider reducing spend on {model.spendProblemCards.map(d => d.name).join(", ")} or increasing the payment.
+                    </div>
+                </div>
+            )}
+
             {/* Stat cards */}
             <div
                 style={{
@@ -871,6 +881,7 @@ export default function Plan({ state }) {
             {/* Trajectory chart — the main motivating visual */}
             <DebtTrajectoryChart
                 trajectory={model.trajectory}
+                events={model.trajectoryEvents}
                 totalDebt={model.totalDebt}
             />
 
