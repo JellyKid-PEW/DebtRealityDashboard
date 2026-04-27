@@ -59,14 +59,18 @@ function normalizeDebts(cards, loans) {
 }
 
 // ─── PRIORITY ENGINE ──────────────────────────────────────────────────────────
-function scoreDebt(d) {
+function scoreDebt(d, monthOffset = 0) {
     const bal = Number(d.balance) || 0;
     if (bal <= 0) return -Infinity;
+    const effApr = aprAt(d, monthOffset);
+    const futApr = getFutApr(d);
     const pm = d.promoEnd ? monthsAway(d.promoEnd) : null;
+    // Urgency: promo expiring soon — boost by reset APR weighted by imminence
     const soon = pm !== null && pm <= 6 && pm >= 0;
-    let score = getEffApr(d) * 1000;
-    if (soon) score += getFutApr(d) * 1000 * ((6 - pm) / 6) * 0.8;
-    if (getEffApr(d) < 5 && !soon) score = getEffApr(d) * 10;
+    let score = effApr * 1000;
+    if (soon) score += futApr * 1000 * ((6 - pm) / 6) * 0.8;
+    // Deprioritize genuinely low-APR debts (no promo risk)
+    if (effApr < 5 && !soon && (pm === null || pm > 6)) score = effApr * 10;
     score += (1 / (bal + 1)) * 100;
     return score;
 }
@@ -227,7 +231,8 @@ function simulate(prioritized, surplus, lumpSum, maxMonths = 60) {
     const months = [];
 
     for (let m = 0; m < maxMonths; m++) {
-        const active = debts.filter(d => d.balance > 0.01);
+        // Re-rank every month — promo expirations can change which debt is most urgent
+        const active = debts.filter(d => d.balance > 0.01).sort((a, b) => scoreDebt(b, m) - scoreDebt(a, m));
         if (!active.length) break;
         const focus = active[0], rest = active.slice(1);
         const lump = m === 0 ? lumpSum : 0;
@@ -352,7 +357,7 @@ function ILine({ item }) {
 
 // ─── SECTIONS ─────────────────────────────────────────────────────────────────
 
-function TodayCard({ month, lumpSum, focus }) {
+function TodayCard({ month, lumpSum, focus, emergencyTarget, surplus }) {
     if (!focus || !month) return null;
     const pm = focus.promoEnd ? monthsAway(focus.promoEnd) : null;
     const why = (pm !== null && pm <= 6) ? "Promo expires soon — will reset to high APR" :
@@ -364,8 +369,8 @@ function TodayCard({ month, lumpSum, focus }) {
                 What To Do Today
             </div>
             {[
-                { icon: "🛡", label: "Keep in savings", value: fmt(Number(month?.pool || 2500)), color: t.muted },
-                { icon: "💥", label: `Pay now → ${focus.name}`, value: fmt(lumpSum || 0), color: t.green, bold: true },
+                { icon: "🛡", label: "Keep in savings", value: fmt(emergencyTarget), color: t.muted },
+                { icon: "💥", label: `Pay now → ${focus.name}`, value: fmt(lumpSum > 0 ? lumpSum : surplus), color: t.green, bold: true },
                 { icon: "📌", label: "Why this debt first", value: why, color: t.amber, small: true },
                 { icon: "⚡", label: "Non-negotiable rule", value: "No new credit card charges. Not one.", color: t.red, small: true },
             ].map((r, i) => (
@@ -471,48 +476,106 @@ function SafePay({ safeData, state, onUpdate }) {
     );
 }
 
-function PaycheckPlan({ state, onUpdate, prioritized }) {
+function PaycheckPlan({ state, onUpdate, prioritized, lumpSum }) {
     const [open, setOpen] = useState(false);
-    const amt = Number(state.paycheckAmount) || 0;
-    const bills = Number(state.paycheckBills) || 0;
-    const mins = Number(state.paycheckMins) || 0;
-    const ess = Number(state.paycheckEssentials) || 0;
-    const attack = Math.max(0, amt - bills - mins - ess);
     const focus = prioritized[0];
+
+    // Auto-derive paycheck share from income frequency
+    const incomes = state.incomes ?? [];
+    const primary = incomes.reduce((best, i) =>
+        normalizeToMonthly(i.amount, i.frequency) > normalizeToMonthly(best.amount || 0, best.frequency || "monthly") ? i : best
+        , incomes[0] || {});
+    const freq = primary?.frequency || "monthly";
+    const fraction = freq === "weekly" ? 0.25 : freq === "biweekly" ? 0.5 : 1.0;
+    const freqLabel = { weekly: "weekly", biweekly: "biweekly", monthly: "monthly" }[freq] || "monthly";
+
+    // Paycheck amount — still user-entered (net varies, paystub needed)
+    const amt = Number(state.paycheckAmount) || 0;
+
+    // Auto-calculate reserves from state
+    const monthlyEss = (state.expenses ?? []).filter(e => e.essential !== false)
+        .reduce((s, e) => s + normalizeToMonthly(e.amount, e.frequency), 0);
+    const monthlyMins = [...(state.creditCards ?? []).map(c => Number(c.minPayment) || 0),
+    ...(state.loans ?? []).map(l => Number(l.monthlyPayment) || 0)].reduce((a, b) => a + b, 0);
+
+    const essShare = monthlyEss * fraction;
+    const minsShare = monthlyMins * fraction;
+    // Bills: non-essential expenses that fall in this pay period
+    const monthlyBills = (state.expenses ?? []).filter(e => e.essential === false)
+        .reduce((s, e) => s + normalizeToMonthly(e.amount, e.frequency), 0);
+    const billsShare = monthlyBills * fraction;
+
+    const reserved = essShare + minsShare + billsShare;
+    const attack = Math.max(0, amt - reserved);
+    const hasAmt = amt > 0;
+
     return (
         <Card border={t.border}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", marginBottom: amt > 0 ? 12 : 0 }} onClick={() => setOpen(o => !o)}>
-                <Label text="Next Paycheck Plan" sub="Exact split of your next paycheck" />
-                <span style={{ fontSize: 12, color: t.subtle, flexShrink: 0 }}>{open ? "▲ hide" : "▼ set up"}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", marginBottom: hasAmt ? 12 : 6 }}
+                onClick={() => setOpen(o => !o)}>
+                <Label text="Next Paycheck Plan" sub={`Auto-calculated for ${freqLabel} pay — only enter your paycheck amount`} />
+                <span style={{ fontSize: 12, color: t.subtle, flexShrink: 0 }}>{open ? "▲ hide" : "▼ open"}</span>
             </div>
-            {amt > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 5, marginBottom: open ? 16 : 0 }}>
+
+            {/* Paycheck amount input — always visible, it's the one thing we need */}
+            <div style={{ marginBottom: hasAmt ? 12 : 0 }}>
+                <Inp label="Your next paycheck (net, after tax) ($)"
+                    value={state.paycheckAmount}
+                    onChange={v => onUpdate({ ...state, paycheckAmount: v })}
+                    help="Enter your take-home amount. Everything else is calculated automatically." />
+            </div>
+
+            {hasAmt && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                     {[
                         { label: "Paycheck received", value: fmt(amt), color: t.green },
-                        { label: "Hold for bills", value: `− ${fmt(bills)}`, color: t.red },
-                        { label: "Hold for minimums", value: `− ${fmt(mins)}`, color: t.red },
-                        { label: "Hold for essentials", value: `− ${fmt(ess)}`, color: t.red },
-                        { label: `Send to ${focus?.name || "focus debt"}`, value: fmt(attack), color: t.amber, bold: true },
+                        {
+                            label: `Essential expenses (${freqLabel} share)`, value: `− ${fmt(essShare)}`, color: t.red,
+                            sub: `${fmt(monthlyEss)}/mo × ${fraction}`
+                        },
+                        {
+                            label: `Minimum debt payments (${freqLabel} share)`, value: `− ${fmt(minsShare)}`, color: t.red,
+                            sub: `${fmt(monthlyMins)}/mo × ${fraction}`
+                        },
+                        {
+                            label: `Non-essential bills (${freqLabel} share)`, value: `− ${fmt(billsShare)}`, color: t.red,
+                            sub: `${fmt(monthlyBills)}/mo × ${fraction}`
+                        },
+                        {
+                            label: `Send to ${focus?.name || "focus debt"}`, value: fmt(attack), color: t.amber, bold: true,
+                            sub: lumpSum > 0 ? "Plus deploy your lump sum separately" : undefined
+                        },
                     ].map((r, i) => (
                         <div key={i} style={{
-                            display: "flex", justifyContent: "space-between", alignItems: "center",
+                            display: "flex", justifyContent: "space-between", alignItems: "flex-start",
                             padding: "9px 14px", borderRadius: 8,
                             background: r.bold ? t.amberBg : "transparent", border: `1px solid ${r.bold ? t.amberD : t.border}`
                         }}>
-                            <span style={{ fontSize: 13, color: r.bold ? t.amber : t.body, fontWeight: r.bold ? 700 : 400 }}>{r.label}</span>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: r.color }}>{r.value}</span>
+                            <div>
+                                <div style={{ fontSize: 13, color: r.bold ? t.amber : t.body, fontWeight: r.bold ? 700 : 400 }}>{r.label}</div>
+                                {r.sub && <div style={{ fontSize: 11, color: t.subtle, marginTop: 1 }}>{r.sub}</div>}
+                            </div>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: r.color, flexShrink: 0, marginLeft: 12 }}>{r.value}</span>
                         </div>
                     ))}
+                    {lumpSum > 0 && (
+                        <div style={{ padding: "9px 14px", borderRadius: 8, background: t.greenBg, border: `1px solid ${t.greenD}`, marginTop: 2 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, color: t.green }}>
+                                💥 Also deploy {fmt(lumpSum)} lump sum from savings → {focus?.name || "focus debt"}
+                            </div>
+                            <div style={{ fontSize: 11, color: "#86efac", marginTop: 2 }}>Do this once — separate from your regular paycheck split.</div>
+                        </div>
+                    )}
                 </div>
             )}
+
             {open && (
-                <div style={{ paddingTop: 16, borderTop: `1px solid ${t.border}` }}>
-                    <Grid cols={2} gap={12}>
-                        <Inp label="Paycheck amount ($)" value={state.paycheckAmount} onChange={v => onUpdate({ ...state, paycheckAmount: v })} />
-                        <Inp label="Bills from this paycheck ($)" value={state.paycheckBills} onChange={v => onUpdate({ ...state, paycheckBills: v })} />
-                        <Inp label="Minimum payments ($)" value={state.paycheckMins} onChange={v => onUpdate({ ...state, paycheckMins: v })} />
-                        <Inp label="Essential spending ($)" value={state.paycheckEssentials} onChange={v => onUpdate({ ...state, paycheckEssentials: v })} />
-                    </Grid>
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
+                    <div style={{ fontSize: 12, color: t.subtle, lineHeight: 1.6 }}>
+                        Reserves are calculated from your Expenses and Debts tabs using your {freqLabel} pay schedule.
+                        Essential expenses: {fmt(monthlyEss)}/mo · Minimums: {fmt(monthlyMins)}/mo · Non-essential bills: {fmt(monthlyBills)}/mo.
+                        Update those tabs to change these numbers.
+                    </div>
                 </div>
             )}
         </Card>
@@ -902,7 +965,7 @@ export default function AttackMap({ state, onUpdate }) {
                 <p style={{ fontSize: 13, color: t.muted, margin: 0, lineHeight: 1.7 }}>You don't need to decide what to pay. This tells you what to pay first, how much, and why.</p>
             </div>
 
-            {hasIncome && hasDebts && model.surplus > 0 && <TodayCard month={model.months[0]} lumpSum={model.lumpSum} focus={focus} />}
+            {hasIncome && hasDebts && model.surplus > 0 && <TodayCard month={model.months[0]} lumpSum={model.lumpSum} focus={focus} emergencyTarget={model.emergencyTarget} surplus={model.surplus} />}
             <SafePay safeData={model.safeData} state={state} onUpdate={onUpdate} />
 
             {!hasIncome && <div style={{ border: `1px solid ${t.border}`, background: t.bg1, borderRadius: 12, padding: 20, textAlign: "center" }}>
@@ -923,7 +986,7 @@ export default function AttackMap({ state, onUpdate }) {
             </div>}
 
             {hasIncome && hasDebts && model.surplus > 0 && (<>
-                <PaycheckPlan state={state} onUpdate={onUpdate} prioritized={model.prioritized} />
+                <PaycheckPlan state={state} onUpdate={onUpdate} prioritized={model.prioritized} lumpSum={model.lumpSum} />
                 <RiskSection risk={model.risk} />
                 {model.promos.length > 0 && <Promos promos={model.promos} />}
                 <AttackOrder prioritized={model.prioritized} />
