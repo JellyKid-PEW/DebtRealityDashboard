@@ -5,6 +5,7 @@ import Assets from "./Views/Assets.jsx";
 import SummaryView from "./Views/SummaryView.jsx";
 import Scenarios from "./Views/Scenarios.jsx";
 import Plan from "./Views/Plan.jsx";
+import AttackMap from "./Views/AttackMap.jsx";
 import { calcAll, normalizeToMonthly } from "./calculations.js";
 
 const STORAGE_KEY = "debt_reality_v1";
@@ -15,6 +16,8 @@ const DEFAULT_STATE = {
     loans: [],
     expenses: [],
     assets: [],
+    savingsBalance: 0,
+    emergencyTarget: 2500,
 };
 
 function loadState() {
@@ -215,13 +218,13 @@ function IncomeView({ state, onUpdate }) {
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 
-const TABS = ["Plan", "Debts", "Expenses", "Income", "Assets", "Scenarios", "Summary"];
+const TABS = ["Attack Map", "Plan", "Debts", "Expenses", "Income", "Assets", "Scenarios", "Summary"];
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
     const [state, setState] = useState(loadState);
-    const [tab, setTab] = useState("Plan");
+    const [tab, setTab] = useState("Attack Map");
     const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
     const [importMsg, setImportMsg] = useState(null);
 
@@ -255,7 +258,7 @@ export default function App() {
                 setState(newState);
                 setImportMsg(importSummary(newState));
                 setTimeout(() => setImportMsg(null), 4000);
-                setTab("Plan");
+                setTab("Attack Map");
             },
             alert
         );
@@ -264,14 +267,15 @@ export default function App() {
 
     function renderTab() {
         switch (tab) {
-            case "Plan":       return <Plan state={state} />;
-            case "Debts":      return <Debts state={state} onUpdate={setState} />;
-            case "Expenses":   return <Expenses state={state} onUpdate={setState} />;
-            case "Income":     return <IncomeView state={state} onUpdate={setState} />;
-            case "Assets":     return <Assets state={state} onUpdate={setState} />;
-            case "Scenarios":  return <Scenarios state={state} />;
-            case "Summary":    return <SummaryView state={state} />;
-            default:           return <Plan state={state} />;
+            case "Attack Map": return <AttackMap state={state} onUpdate={setState} />;
+            case "Plan": return <Plan state={state} />;
+            case "Debts": return <Debts state={state} onUpdate={setState} />;
+            case "Expenses": return <Expenses state={state} onUpdate={setState} />;
+            case "Income": return <IncomeView state={state} onUpdate={setState} />;
+            case "Assets": return <Assets state={state} onUpdate={setState} />;
+            case "Scenarios": return <Scenarios state={state} />;
+            case "Summary": return <SummaryView state={state} />;
+            default: return <AttackMap state={state} onUpdate={setState} />;
         }
     }
 
