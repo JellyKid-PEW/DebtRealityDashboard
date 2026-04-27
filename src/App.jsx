@@ -18,6 +18,14 @@ const DEFAULT_STATE = {
     assets: [],
     savingsBalance: 0,
     emergencyTarget: 2500,
+    upcomingBills: 0,
+    upcomingMins: 0,
+    essentialCash: 0,
+    paycheckAmount: 0,
+    paycheckBills: 0,
+    paycheckMins: 0,
+    paycheckEssentials: 0,
+    cardLockouts: {},
 };
 
 function loadState() {

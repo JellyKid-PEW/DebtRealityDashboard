@@ -2,898 +2,782 @@ import React, { useMemo, useState } from "react";
 import { normalizeToMonthly } from "../calculations.js";
 
 // ─── TOKENS ───────────────────────────────────────────────────────────────────
-
 const t = {
-    bg0:    "#080b10",
-    bg1:    "#0f172a",
-    bg2:    "#111827",
-    border: "#1e293b",
-    bright: "#e2e8f0",
-    body:   "#cbd5e1",
-    muted:  "#94a3b8",
-    subtle: "#64748b",
-    amber:  "#f59e0b",
-    amberD: "#78350f",
-    amberBg:"#1a1200",
-    green:  "#22c55e",
-    greenD: "#166534",
-    greenBg:"#052e16",
-    red:    "#ef4444",
-    redD:   "#7f1d1d",
-    redBg:  "#1c0707",
-    blue:   "#38bdf8",
-    blueBg: "#0c1a2e",
+    bg0:"#080b10",bg1:"#0f172a",bg2:"#111827",
+    border:"#1e293b",bright:"#e2e8f0",body:"#cbd5e1",
+    muted:"#94a3b8",subtle:"#64748b",
+    amber:"#f59e0b",amberD:"#78350f",amberBg:"#1a1200",
+    green:"#22c55e",greenD:"#166534",greenBg:"#052e16",
+    red:"#ef4444",redD:"#7f1d1d",redBg:"#1c0707",
+    blue:"#38bdf8",blueD:"#1e3a5f",blueBg:"#0c1a2e",
 };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-
-function fmt(n) {
-    const v = Math.abs(Number(n) || 0);
-    return `$${v.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-}
-
-function fmtExact(n) {
-    return `$${Math.abs(Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function fmtPct(n) {
-    return `${(Number(n) || 0).toFixed(1)}%`;
-}
+const fmt = n=>`$${Math.abs(Number(n)||0).toLocaleString(undefined,{maximumFractionDigits:0})}`;
+const fmtD = n=>`$${Math.abs(Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const fmtPct = n=>`${(Number(n)||0).toFixed(1)}%`;
 
 function monthsAway(dateStr) {
     if (!dateStr) return null;
     const d = new Date(dateStr);
     if (isNaN(d)) return null;
     const now = new Date();
-    return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
+    return (d.getFullYear()-now.getFullYear())*12+(d.getMonth()-now.getMonth());
 }
-
-function addMonths(n) {
+function addMonthsLabel(n) {
     const d = new Date();
-    d.setMonth(d.getMonth() + n);
-    return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    d.setMonth(d.getMonth()+n);
+    return d.toLocaleDateString("en-US",{month:"short",year:"numeric"});
+}
+function ipm(bal,apr) { return (Number(bal)||0)*((Number(apr)||0)/100)/12; }
+function getEffApr(d) { const p=Number(d.promoApr); return p>0?p:Number(d.apr)||0; }
+function getFutApr(d) { return Number(d.apr)||0; }
+
+// ─── DEBT NORMALIZATION ───────────────────────────────────────────────────────
+function normalizeDebts(cards,loans) {
+    const c=(cards??[]).map(x=>({...x,_type:"card",balance:Number(x.balance)||0,
+        minPayment:Number(x.minPayment)||0,monthlyPayment:Number(x.monthlyPayment)||Number(x.minPayment)||0,
+        monthlySpend:Number(x.monthlySpend)||0}));
+    const l=(loans??[]).map(x=>({...x,_type:"loan",balance:Number(x.balance)||0,
+        minPayment:Number(x.monthlyPayment)||0,monthlyPayment:Number(x.monthlyPayment)||0,monthlySpend:0}));
+    return [...c,...l];
 }
 
-function interestPerMonth(balance, apr) {
-    return (Number(balance) || 0) * ((Number(apr) || 0) / 100) / 12;
-}
-
-// ─── DEBT PRIORITY ENGINE ─────────────────────────────────────────────────────
-// Scores every active debt and returns them sorted by urgency.
-// Priority logic:
-//   1. Promo balances expiring within 6 months — highest urgency
-//   2. Highest effective APR
-//   3. Tie-break: smaller balance (quick win)
-//   4. Low/no APR debts (mortgage, student loan, 0% cards) — deprioritized
-
-function scoreDept(debt, nowMonth) {
-    const effectiveApr = getEffectiveApr(debt);
-    const balance = Number(debt.balance) || 0;
-    if (balance <= 0) return -Infinity;
-
-    // Promo expiry urgency: treated as "current APR will spike"
-    const promoMonths = debt.promoEnd ? monthsAway(debt.promoEnd) : null;
-    const isPromoExpiringSoon = promoMonths !== null && promoMonths <= 6 && promoMonths >= 0;
-    const futureApr = Number(debt.apr) || 0;
-
-    // Base score = effective APR × 1000 (so basis points matter)
-    let score = effectiveApr * 1000;
-
-    // Promo urgency boost: weight by how soon it expires and what the reset APR is
-    if (isPromoExpiringSoon) {
-        const urgencyMultiplier = (6 - promoMonths) / 6; // 0–1, higher = more urgent
-        score += futureApr * 1000 * urgencyMultiplier * 0.8;
-    }
-
-    // Penalize very low APR debts (mortgage, student loans, 0% cards not expiring)
-    if (effectiveApr < 5 && !isPromoExpiringSoon) score = effectiveApr * 10;
-
-    // Tie-break: smaller balance scores slightly higher
-    score += (1 / (balance + 1)) * 100;
-
+// ─── PRIORITY ENGINE ──────────────────────────────────────────────────────────
+function scoreDebt(d) {
+    const bal=Number(d.balance)||0;
+    if(bal<=0) return -Infinity;
+    const pm=d.promoEnd?monthsAway(d.promoEnd):null;
+    const soon=pm!==null&&pm<=6&&pm>=0;
+    let score=getEffApr(d)*1000;
+    if(soon) score+=getFutApr(d)*1000*((6-pm)/6)*0.8;
+    if(getEffApr(d)<5&&!soon) score=getEffApr(d)*10;
+    score+=(1/(bal+1))*100;
     return score;
 }
-
-function getEffectiveApr(debt) {
-    const promoApr = Number(debt.promoApr);
-    if (promoApr > 0) return promoApr;
-    return Number(debt.apr) || 0;
+function prioritizeDebts(cards,loans) {
+    return normalizeDebts(cards,loans).filter(d=>d.balance>0).sort((a,b)=>scoreDebt(b)-scoreDebt(a));
 }
 
-function prioritizeDebts(cards, loans) {
-    const all = [
-        ...(cards ?? []).map(c => ({
-            ...c,
-            _type: "card",
-            balance: Number(c.balance) || 0,
-            minPayment: Number(c.minPayment) || 0,
-            monthlyPayment: Number(c.monthlyPayment) || Number(c.minPayment) || 0,
-            monthlySpend: Number(c.monthlySpend) || 0,
-        })),
-        ...(loans ?? []).map(l => ({
-            ...l,
-            _type: "loan",
-            balance: Number(l.balance) || 0,
-            minPayment: Number(l.monthlyPayment) || 0,
-            monthlyPayment: Number(l.monthlyPayment) || 0,
-            monthlySpend: 0,
-        })),
-    ].filter(d => d.balance > 0);
-
-    return [...all].sort((a, b) => scoreDept(b) - scoreDept(a));
-}
-
-// ─── SURPLUS CALCULATION ──────────────────────────────────────────────────────
-// Real attack capacity = income - essential expenses - all minimums
-// This is money the household can throw at debt beyond minimums.
-
+// ─── SURPLUS ──────────────────────────────────────────────────────────────────
 function calcSurplus(state) {
-    const income = (state.incomes ?? []).reduce(
-        (sum, i) => sum + normalizeToMonthly(i.amount, i.frequency), 0
-    );
-
-    const essentialExpenses = (state.expenses ?? [])
-        .filter(e => e.essential !== false)
-        .reduce((sum, e) => sum + normalizeToMonthly(e.amount, e.frequency), 0);
-
-    const allMinimums = [
-        ...(state.creditCards ?? []).map(c => Number(c.minPayment) || 0),
-        ...(state.loans ?? []).map(l => Number(l.monthlyPayment) || 0),
-    ].reduce((a, b) => a + b, 0);
-
-    const surplus = income - essentialExpenses - allMinimums;
-    return { income, essentialExpenses, allMinimums, surplus: Math.max(0, surplus) };
+    const income=(state.incomes??[]).reduce((s,i)=>s+normalizeToMonthly(i.amount,i.frequency),0);
+    const essential=(state.expenses??[]).filter(e=>e.essential!==false).reduce((s,e)=>s+normalizeToMonthly(e.amount,e.frequency),0);
+    const minimums=[...(state.creditCards??[]).map(c=>Number(c.minPayment)||0),...(state.loans??[]).map(l=>Number(l.monthlyPayment)||0)].reduce((a,b)=>a+b,0);
+    return {income,essential,minimums,surplus:Math.max(0,income-essential-minimums)};
 }
 
-// ─── EMERGENCY BUFFER RECOMMENDATION ─────────────────────────────────────────
-// Recommended buffer = 1 month of essential expenses + minimums
-// (reduced from the standard 3-6 months because stable income + strong position)
-// Floor at $1,000, cap at $5,000 for aggressive paydown context.
-
-function calcEmergencyBuffer(essentialExpenses, allMinimums) {
-    const oneMonth = essentialExpenses + allMinimums;
-    return Math.min(5000, Math.max(1000, Math.round(oneMonth * 0.5 / 100) * 100));
+// ─── SAFE TO PAY ─────────────────────────────────────────────────────────────
+function calcSafeToPay(state) {
+    const cash=Number(state.savingsBalance)||0;
+    const buffer=Number(state.emergencyTarget)||2500;
+    const bills=Number(state.upcomingBills)||0;
+    const mins=Number(state.upcomingMins)||0;
+    const ess=Number(state.essentialCash)||0;
+    const safe=Math.max(0,cash-buffer-bills-mins-ess);
+    return {safe,keep:cash-safe,cash,buffer,bills,mins,ess};
 }
 
-// ─── MONTH-BY-MONTH SIMULATION ────────────────────────────────────────────────
-// Simulates the attack sequence month by month.
-// Returns an array of month objects with exact instructions.
+// ─── PROMO DEADLINES ─────────────────────────────────────────────────────────
+function calcPromos(cards) {
+    return (cards??[]).filter(c=>{
+        const pm=monthsAway(c.promoEnd);
+        return Number(c.promoApr)>0&&pm!==null&&pm>=0;
+    }).map(c=>{
+        const pm=monthsAway(c.promoEnd);
+        const bal=Number(c.balance)||0;
+        return {...c,monthsRemaining:pm,required:bal/Math.max(1,pm),
+            urgency:pm<=2?"critical":pm<=6?"urgent":"watch",
+            futureApr:Number(c.apr)||0,promoApr:Number(c.promoApr)||0};
+    }).sort((a,b)=>a.monthsRemaining-b.monthsRemaining);
+}
 
-function simulateAttackMap(prioritized, surplus, lumpSum, maxMonths = 60) {
-    if (!prioritized.length || surplus <= 0) return [];
+// ─── MIN PAYMENT DANGER ───────────────────────────────────────────────────────
+function calcDangers(debts) {
+    return debts.filter(d=>d.balance>0).map(d=>{
+        const interest=ipm(d.balance,getEffApr(d));
+        const payment=d.monthlyPayment||d.minPayment||0;
+        const share=payment>0?interest/payment:1;
+        const level=payment<=interest?"critical":share>=0.75?"danger":share>=0.5?"warning":null;
+        const msg=payment<=interest?"This payment doesn't cover interest. Balance is growing.":
+            share>=0.75?"Most of this payment is interest. Balance moves very slowly.":
+            share>=0.5?"Over half this payment is interest.":null;
+        return {...d,interest,payment,share,level,msg};
+    }).filter(d=>d.level);
+}
 
-    // Deep clone with working balances
-    let debts = prioritized.map(d => ({ ...d, balance: Number(d.balance) || 0 }));
-    let attackPool = surplus; // grows as debts clear
-    const months = [];
+// ─── RISK FLAGS ───────────────────────────────────────────────────────────────
+function calcRisk(state,surplus,prioritized,promos) {
+    const flags=[];
+    const cash=Number(state.savingsBalance)||0;
+    const buffer=Number(state.emergencyTarget)||2500;
+    const cards=state.creditCards??[];
+    const totalDebt=prioritized.reduce((s,d)=>s+d.balance,0);
+    const totalLimit=cards.reduce((s,c)=>s+Number(c.limit||0),0);
+    const util=totalLimit>0?totalDebt/totalLimit:0;
+    const income=(state.incomes??[]).reduce((s,i)=>s+normalizeToMonthly(i.amount,i.frequency),0);
+    const mins=prioritized.reduce((s,d)=>s+d.minPayment,0);
 
-    for (let m = 0; m < maxMonths; m++) {
-        const activeDebts = debts.filter(d => d.balance > 0.01);
-        if (!activeDebts.length) break;
+    if(cash<buffer) flags.push({level:"red",text:`Emergency buffer short — have ${fmt(cash)}, need ${fmt(buffer)}`});
+    if(surplus<=0) flags.push({level:"red",text:"No monthly surplus — nothing to attack debt with"});
+    if(util>0.8) flags.push({level:"red",text:`Credit utilization at ${fmtPct(util*100)} — above 80%`});
+    if(promos.filter(p=>p.urgency==="critical").length) flags.push({level:"red",text:"Promo rate expiring within 2 months — act now"});
+    if(promos.filter(p=>p.urgency==="urgent").length) flags.push({level:"amber",text:"Promo rate expiring within 6 months"});
+    const spendCards=cards.filter(c=>Number(c.monthlySpend)>0&&Number(c.balance)>0);
+    if(spendCards.length) flags.push({level:"amber",text:`New charges on ${spendCards.length} payoff card${spendCards.length>1?"s":""} — breaking the plan`});
+    if(income>0&&mins/income>0.4) flags.push({level:"amber",text:`Minimums are ${fmtPct(mins/income*100)} of income`});
 
-        const focus = activeDebts[0];
-        const rest = activeDebts.slice(1);
+    const redCount=flags.filter(f=>f.level==="red").length;
+    return {flags,overall:redCount>=2?"red":redCount>=1?"red":flags.length>=2?"amber":"green"};
+}
 
-        // Month 1: apply lump sum first
-        let lumpThisMonth = m === 0 ? lumpSum : 0;
-        let balanceAfterLump = Math.max(0, focus.balance - lumpThisMonth);
+// ─── MILESTONES ───────────────────────────────────────────────────────────────
+function calcMilestones(state,prioritized) {
+    const cards=state.creditCards??[];
+    const totalDebt=prioritized.reduce((s,d)=>s+d.balance,0);
+    const totalLimit=cards.reduce((s,c)=>s+Number(c.limit||0),0);
+    const util=totalLimit>0?totalDebt/totalLimit:0;
+    const highApr=prioritized.filter(d=>getEffApr(d)>=20).reduce((s,d)=>s+d.balance,0);
+    const completed=[],upcoming=[];
 
-        // Interest on focus debt (on remaining balance after lump)
-        const focusInterest = interestPerMonth(balanceAfterLump, getEffectiveApr(focus));
-        balanceAfterLump += focusInterest;
+    if(prioritized.length>0) upcoming.push({label:`Pay off ${prioritized[0].name}`,detail:`${fmt(prioritized[0].balance)} remaining`,priority:true});
+    if(util>=0.9) upcoming.push({label:`Get utilization below 90% — now ${fmtPct(util*100)}`});
+    else if(util>=0.75) upcoming.push({label:`Get utilization below 75% — now ${fmtPct(util*100)}`});
+    else if(util>=0.5) upcoming.push({label:`Get utilization below 50% — now ${fmtPct(util*100)}`});
+    else completed.push({label:"Utilization below 50%"});
 
-        // How much attack pool can go to focus
-        let remainingPool = attackPool;
-        const focusMinimum = focus.minPayment || 0;
-        // Pool already covers focus minimum (it's included in minimums subtracted from income)
-        // Extra pool = surplus above all minimums — goes entirely to focus
-        const focusExtraPayment = Math.min(balanceAfterLump, remainingPool);
-        const balanceAfterAttack = Math.max(0, balanceAfterLump - focusExtraPayment);
-        const focusCleared = balanceAfterAttack <= 0.01;
+    if(highApr>0) upcoming.push({label:`Eliminate all 20%+ APR debt — ${fmt(highApr)} remaining`});
+    else completed.push({label:"All 20%+ APR debt gone"});
 
-        // Leftover pool if focus is cleared mid-month
-        let leftover = focusCleared ? Math.max(0, focusExtraPayment - (balanceAfterLump)) : 0;
+    if(cards.filter(c=>Number(c.balance)>0).length>0) upcoming.push({label:"Clear all credit card balances"});
+    else completed.push({label:"All credit cards cleared"});
 
-        // Next target gets leftover
-        const nextTarget = rest[0] || null;
-        let nextTargetPayment = 0;
-        if (focusCleared && nextTarget && leftover > 0) {
-            nextTargetPayment = Math.min(leftover, nextTarget.balance);
-        }
+    return {completed,upcoming:upcoming.slice(0,4)};
+}
 
-        // Build month instructions
-        const instructions = [];
+// ─── SPENDING LEAKS ───────────────────────────────────────────────────────────
+function calcLeaks(state,surplus) {
+    const bycat={};
+    (state.expenses??[]).forEach(e=>{
+        const cat=e.category||"Other";
+        const mo=normalizeToMonthly(e.amount,e.frequency);
+        if(!bycat[cat]) bycat[cat]={total:0,optional:0};
+        bycat[cat].total+=mo;
+        if(e.essential===false) bycat[cat].optional+=mo;
+    });
+    return Object.entries(bycat).filter(([,v])=>v.optional>=50).map(([cat,v])=>({
+        category:cat,total:v.total,optional:v.optional,
+        monthsSaved:Math.round(v.optional/(surplus+v.optional)*12),
+    })).sort((a,b)=>b.optional-a.optional).slice(0,4);
+}
 
-        if (m === 0 && lumpThisMonth > 0) {
-            instructions.push({
-                type: "lump",
-                text: `Deploy ${fmt(lumpThisMonth)} lump sum → ${focus.name}`,
-                amount: lumpThisMonth,
-                debt: focus.name,
-            });
-        }
+// ─── SIMULATION ───────────────────────────────────────────────────────────────
+function simulate(prioritized,surplus,lumpSum,maxMonths=60) {
+    if(!prioritized.length||surplus<=0) return [];
+    let debts=prioritized.map(d=>({...d,balance:Number(d.balance)||0}));
+    let pool=surplus;
+    const months=[];
 
-        instructions.push({
-            type: "focus",
-            text: `Pay ${fmt(focusMinimum + focusExtraPayment + (m === 0 ? 0 : 0))}/mo → ${focus.name} (focus debt)`,
-            amount: focusMinimum + (attackPool - (nextTarget && focusCleared ? leftover : 0)),
-            debt: focus.name,
+    for(let m=0;m<maxMonths;m++) {
+        const active=debts.filter(d=>d.balance>0.01);
+        if(!active.length) break;
+        const focus=active[0],rest=active.slice(1);
+        const lump=m===0?lumpSum:0;
+        let bal=Math.max(0,focus.balance-lump);
+        const interest=ipm(bal,getEffApr(focus));
+        bal+=interest;
+        const pay=Math.min(bal,pool);
+        const remaining=Math.max(0,bal-pay);
+        const cleared=remaining<=0.01;
+        const leftover=cleared?Math.max(0,pay-bal):0;
+        const next=rest[0]||null;
+        const overflow=cleared&&next?Math.min(leftover,next.balance):0;
+        const totalInterest=interest+rest.reduce((s,d)=>s+ipm(d.balance,getEffApr(d)),0);
+
+        const instructions=[];
+        if(lump>0) instructions.push({type:"lump",text:`Deploy ${fmt(lump)} lump sum → ${focus.name}`,amt:lump,debt:focus.name});
+        instructions.push({type:"focus",text:`Pay ${fmt(focus.minPayment+pool)}/mo → ${focus.name} (all attack money here)`,amt:focus.minPayment+pool,debt:focus.name});
+        rest.forEach(d=>{ if(d.balance>0.01) instructions.push({type:"minimum",text:`Minimum only — ${fmt(d.minPayment)}/mo`,amt:d.minPayment,debt:d.name}); });
+        if(overflow>0&&next) instructions.push({type:"overflow",text:`Leftover ${fmt(overflow)} → ${next.name}`,amt:overflow,debt:next.name});
+        instructions.push({type:"rule",text:"No new credit card charges. Not one.",debt:null});
+
+        months.push({month:m+1,label:addMonthsLabel(m),focusDebt:focus.name,focusId:focus.id,
+            focusBalance:focus.balance,balAfter:remaining,cleared,lump,pool,
+            nextTarget:next?.name||null,instructions,totalInterest});
+
+        debts=debts.map(d=>{
+            if(d.id===focus.id) return {...d,balance:remaining};
+            if(d.id===next?.id) return {...d,balance:Math.max(0,d.balance-overflow+ipm(d.balance,getEffApr(d))+d.monthlySpend)};
+            return {...d,balance:Math.max(0,d.balance+ipm(d.balance,getEffApr(d))+d.monthlySpend-d.minPayment)};
         });
-
-        // Minimums on everything else
-        for (const d of rest) {
-            if (d.balance > 0.01) {
-                instructions.push({
-                    type: "minimum",
-                    text: `Pay minimum ${fmt(d.minPayment)}/mo → ${d.name}`,
-                    amount: d.minPayment,
-                    debt: d.name,
-                });
-            }
-        }
-
-        if (focusCleared && nextTarget && nextTargetPayment > 0) {
-            instructions.push({
-                type: "overflow",
-                text: `Send leftover ${fmt(nextTargetPayment)} → ${nextTarget.name}`,
-                amount: nextTargetPayment,
-                debt: nextTarget.name,
-            });
-        }
-
-        instructions.push({
-            type: "rule",
-            text: "No new credit card charges this month",
-        });
-
-        months.push({
-            month: m + 1,
-            label: addMonths(m),
-            focusDebt: focus.name,
-            focusBalance: focus.balance,
-            focusApr: getEffectiveApr(focus),
-            balanceAfterMonth: balanceAfterAttack,
-            focusCleared,
-            lumpSum: lumpThisMonth,
-            attackPool,
-            nextTarget: nextTarget?.name || null,
-            instructions,
-            interestCost: focusInterest + rest.reduce((s, d) => s + interestPerMonth(d.balance, getEffectiveApr(d)), 0),
-        });
-
-        // Advance balances for next month
-        debts = debts.map(d => {
-            if (d.id === focus.id) return { ...d, balance: balanceAfterAttack };
-            if (d.id === nextTarget?.id) return { ...d, balance: Math.max(0, d.balance - nextTargetPayment + interestPerMonth(d.balance, getEffectiveApr(d)) + d.monthlySpend) };
-            const newBal = Math.max(0, d.balance + interestPerMonth(d.balance, getEffectiveApr(d)) + d.monthlySpend - d.minPayment);
-            return { ...d, balance: newBal };
-        });
-
-        // Roll freed minimum into attack pool when focus clears
-        if (focusCleared) {
-            attackPool += focus.minPayment || 0;
-        }
+        if(cleared) pool+=focus.minPayment||0;
     }
-
     return months;
 }
 
-// ─── UI COMPONENTS ────────────────────────────────────────────────────────────
-
-function SectionHeader({ label, sub }) {
-    return (
-        <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: t.muted, marginBottom: 3 }}>
-                {label}
-            </div>
-            {sub && <div style={{ fontSize: 13, color: t.subtle, lineHeight: 1.5 }}>{sub}</div>}
+// ─── UI PRIMITIVES ────────────────────────────────────────────────────────────
+function Card({children,border=t.border,bg=t.bg1,padding=16}) {
+    return <div style={{border:`1px solid ${border}`,background:bg,borderRadius:12,padding}}>{children}</div>;
+}
+function Label({text,sub}) {
+    return <div style={{marginBottom:10}}>
+        <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:t.muted,marginBottom:sub?3:0}}>{text}</div>
+        {sub&&<div style={{fontSize:12,color:t.subtle,lineHeight:1.5}}>{sub}</div>}
+    </div>;
+}
+function Grid({children,cols=2,gap=10}) {
+    return <div style={{display:"grid",gridTemplateColumns:`repeat(${cols},minmax(0,1fr))`,gap}}>{children}</div>;
+}
+function Stat({label,value,sub,color=t.bright}) {
+    return <div style={{border:`1px solid ${t.border}`,background:t.bg2,borderRadius:10,padding:"12px 14px"}}>
+        <div style={{fontSize:10,color:t.subtle,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>{label}</div>
+        <div style={{fontSize:18,fontWeight:700,color,lineHeight:1.1}}>{value}</div>
+        {sub&&<div style={{fontSize:11,color:t.subtle,marginTop:3,lineHeight:1.4}}>{sub}</div>}
+    </div>;
+}
+function Inp({label,value,onChange,help}) {
+    return <label style={{display:"flex",flexDirection:"column",gap:5}}>
+        <span style={{fontSize:12,color:t.body}}>{label}</span>
+        <input type="number" value={value||""} onChange={e=>onChange(parseFloat(e.target.value)||0)}
+            style={{minHeight:42,borderRadius:8,border:`1px solid ${t.border}`,background:t.bg2,
+                color:t.bright,padding:"8px 12px",fontSize:14,outline:"none"}} />
+        {help&&<span style={{fontSize:11,color:t.subtle,marginTop:2}}>{help}</span>}
+    </label>;
+}
+function Pill({text,color=t.muted,bg="transparent",border=t.border}) {
+    return <span style={{fontSize:10,fontWeight:700,padding:"2px 7px",borderRadius:4,color,
+        background:bg,border:`1px solid ${border}`,letterSpacing:"0.06em",whiteSpace:"nowrap"}}>{text}</span>;
+}
+function ILine({item}) {
+    const cfg={lump:{icon:"💥",color:t.amber,bg:t.amberBg,border:t.amberD},
+        focus:{icon:"🎯",color:t.green,bg:t.greenBg,border:t.greenD},
+        minimum:{icon:"→",color:t.muted,bg:"transparent",border:t.border},
+        overflow:{icon:"↩",color:t.blue,bg:t.blueBg,border:t.blueD},
+        rule:{icon:"⚡",color:t.subtle,bg:"transparent",border:t.border}};
+    const c=cfg[item.type]||cfg.rule;
+    return <div style={{display:"flex",alignItems:"flex-start",gap:10,padding:"9px 13px",borderRadius:9,
+        border:`1px solid ${c.border}`,background:c.bg,marginBottom:5}}>
+        <span style={{fontSize:15,lineHeight:1,marginTop:1,flexShrink:0}}>{c.icon}</span>
+        <div style={{flex:1}}>
+            {item.debt&&<div style={{fontSize:10,color:t.subtle,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:1}}>{item.debt}</div>}
+            <div style={{fontSize:13,color:c.color,fontWeight:item.type==="focus"||item.type==="lump"?600:400,lineHeight:1.4}}>{item.text}</div>
         </div>
-    );
+        {item.amt&&<div style={{fontSize:14,fontWeight:700,color:c.color,flexShrink:0}}>{fmt(item.amt)}</div>}
+    </div>;
 }
 
-function BigStat({ label, value, sub, color = t.bright, size = 28 }) {
-    return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-            <div style={{ fontSize: 11, color: t.subtle, letterSpacing: "0.08em", textTransform: "uppercase" }}>{label}</div>
-            <div style={{ fontSize: size, fontWeight: 700, color, lineHeight: 1.1 }}>{value}</div>
-            {sub && <div style={{ fontSize: 12, color: t.subtle, lineHeight: 1.4 }}>{sub}</div>}
-        </div>
-    );
-}
+// ─── SECTIONS ─────────────────────────────────────────────────────────────────
 
-function Card({ children, border = t.border, bg = t.bg1, padding = 18 }) {
-    return (
-        <div style={{ border: `1px solid ${border}`, background: bg, borderRadius: 12, padding }}>
-            {children}
-        </div>
-    );
-}
-
-function Row({ children, gap = 12 }) {
-    return <div style={{ display: "flex", gap, flexWrap: "wrap", alignItems: "flex-start" }}>{children}</div>;
-}
-
-function Grid({ children, cols = 2, gap = 12 }) {
-    return (
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap }}>
-            {children}
-        </div>
-    );
-}
-
-function StatBox({ label, value, color = t.bright, sub }) {
-    return (
-        <div style={{ border: `1px solid ${t.border}`, background: t.bg2, borderRadius: 10, padding: "12px 14px" }}>
-            <div style={{ fontSize: 11, color: t.subtle, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 5 }}>{label}</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
-            {sub && <div style={{ fontSize: 11, color: t.subtle, marginTop: 3, lineHeight: 1.4 }}>{sub}</div>}
-        </div>
-    );
-}
-
-function InstructionLine({ item, index }) {
-    const icons = { lump: "💥", focus: "🎯", minimum: "→", overflow: "↩", rule: "⚡" };
-    const colors = { lump: t.amber, focus: t.green, minimum: t.muted, overflow: t.blue, rule: t.subtle };
-    const bgs = { lump: t.amberBg, focus: t.greenBg, minimum: "transparent", overflow: t.blueBg, rule: "transparent" };
-    const borders = { lump: t.amberD, focus: t.greenD, minimum: t.border, overflow: "#1e3a5f", rule: t.border };
-
-    return (
-        <div style={{
-            display: "flex", alignItems: "flex-start", gap: 10,
-            padding: "10px 14px", borderRadius: 9,
-            border: `1px solid ${borders[item.type]}`,
-            background: bgs[item.type],
-            marginBottom: 6,
-        }}>
-            <span style={{ fontSize: 16, lineHeight: 1, marginTop: 1, flexShrink: 0 }}>{icons[item.type]}</span>
-            <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, color: colors[item.type], fontWeight: item.type === "focus" || item.type === "lump" ? 600 : 400, lineHeight: 1.5 }}>
-                    {item.text}
-                </div>
-            </div>
-            {item.amount && (
-                <div style={{ fontSize: 14, fontWeight: 700, color: colors[item.type], flexShrink: 0 }}>
-                    {fmt(item.amount)}
-                </div>
-            )}
-        </div>
-    );
-}
-
-function PromoWarningBadge({ debt }) {
-    const months = monthsAway(debt.promoEnd);
-    if (months === null || months > 6 || months < 0) return null;
-    return (
-        <span style={{
-            background: t.redBg, border: `1px solid ${t.redD}`,
-            borderRadius: 5, padding: "2px 7px",
-            fontSize: 11, color: t.red, fontWeight: 600,
-            marginLeft: 8,
-        }}>
-            ⚠ promo ends {months === 0 ? "this month" : `in ${months}mo`}
-        </span>
-    );
-}
-
-// ─── POSITION SECTION ─────────────────────────────────────────────────────────
-
-function PositionSection({ surplus, savingsBalance, emergencyTarget, lumpSum, monthlyInterest, isMobile }) {
-    const dailyCost = monthlyInterest / 30;
-
-    return (
-        <Card border={t.border}>
-            <SectionHeader
-                label="Your Position"
-                sub="The numbers that determine how fast you can attack."
-            />
-
-            {/* The cost of inaction — most viscerally important number */}
-            <div style={{
-                background: t.redBg, border: `1px solid ${t.redD}`,
-                borderRadius: 10, padding: "14px 18px", marginBottom: 16,
-                display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8,
-            }}>
-                <div>
-                    <div style={{ fontSize: 12, color: "#f87171", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 2 }}>
-                        Cost of doing nothing
-                    </div>
-                    <div style={{ fontSize: 13, color: "#fca5a5", lineHeight: 1.6 }}>
-                        Your debt costs approximately{" "}
-                        <strong style={{ color: t.red }}>{fmtExact(monthlyInterest)}/month</strong>{" "}
-                        in interest — that's{" "}
-                        <strong style={{ color: t.red }}>{fmtExact(dailyCost)}/day</strong>{" "}
-                        just to stand still.
-                    </div>
-                </div>
-            </div>
-
-            <Grid cols={isMobile ? 2 : 4} gap={10}>
-                <StatBox
-                    label="Monthly Surplus"
-                    value={fmt(surplus)}
-                    color={surplus > 0 ? t.green : t.red}
-                    sub="Income minus expenses minus minimums"
-                />
-                <StatBox
-                    label="Savings on Hand"
-                    value={fmt(savingsBalance)}
-                    color={t.bright}
-                    sub="Current balance"
-                />
-                <StatBox
-                    label="Keep as Buffer"
-                    value={fmt(emergencyTarget)}
-                    color={t.amber}
-                    sub="Recommended emergency reserve"
-                />
-                <StatBox
-                    label="Deployable Now"
-                    value={fmt(lumpSum)}
-                    color={lumpSum > 0 ? t.green : t.muted}
-                    sub="Lump sum ready to deploy"
-                />
-            </Grid>
-        </Card>
-    );
-}
-
-// ─── PRIORITY STACK SECTION ───────────────────────────────────────────────────
-
-function PriorityStack({ prioritized, isMobile }) {
-    const active = prioritized.filter(d => d.balance > 0);
-
-    return (
-        <Card border={t.border}>
-            <SectionHeader
-                label="Attack Order"
-                sub="Debts ranked by urgency. Promo expirations and high APR first."
-            />
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {active.map((d, i) => {
-                    const isFirst = i === 0;
-                    const effectiveApr = getEffectiveApr(d);
-                    const futureApr = Number(d.apr) || 0;
-                    const promoMonths = d.promoEnd ? monthsAway(d.promoEnd) : null;
-                    const isPromo = promoMonths !== null && promoMonths >= 0;
-                    const monthly = interestPerMonth(d.balance, effectiveApr);
-
-                    return (
-                        <div key={d.id} style={{
-                            display: "flex", alignItems: "center", gap: 12,
-                            padding: "12px 14px", borderRadius: 10,
-                            border: `1px solid ${isFirst ? t.amberD : t.border}`,
-                            background: isFirst ? t.amberBg : t.bg2,
-                        }}>
-                            {/* Rank */}
-                            <div style={{
-                                width: 26, height: 26, borderRadius: "50%",
-                                background: isFirst ? t.amber : t.border,
-                                color: isFirst ? "#111" : t.subtle,
-                                fontSize: 12, fontWeight: 700,
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                flexShrink: 0,
-                            }}>
-                                {i + 1}
-                            </div>
-
-                            {/* Name + badges */}
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4, marginBottom: 3 }}>
-                                    <span style={{ fontSize: 14, fontWeight: isFirst ? 700 : 500, color: isFirst ? t.amber : t.bright }}>
-                                        {d.name}
-                                    </span>
-                                    {isFirst && (
-                                        <span style={{ background: t.amber, color: "#111", fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, letterSpacing: "0.08em" }}>
-                                            FOCUS
-                                        </span>
-                                    )}
-                                    {isPromo && <PromoWarningBadge debt={d} />}
-                                </div>
-                                <div style={{ fontSize: 12, color: t.muted, lineHeight: 1.5 }}>
-                                    {fmt(d.balance)} balance · {fmtPct(effectiveApr)} APR
-                                    {isPromo && futureApr > effectiveApr && (
-                                        <span style={{ color: t.red }}> → resets to {fmtPct(futureApr)}</span>
-                                    )}
-                                    {" · "}min {fmt(d.minPayment)}/mo
-                                </div>
-                            </div>
-
-                            {/* Monthly interest cost */}
-                            <div style={{ textAlign: "right", flexShrink: 0 }}>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: t.red }}>{fmtExact(monthly)}/mo</div>
-                                <div style={{ fontSize: 11, color: t.subtle }}>in interest</div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </Card>
-    );
-}
-
-// ─── THIS MONTH CARD ──────────────────────────────────────────────────────────
-
-function ThisMonthCard({ month, surplus, lumpSum }) {
-    if (!month) return null;
-
-    const balanceDrop = month.focusBalance - month.balanceAfterMonth - lumpSum;
-
+function TodayCard({month,lumpSum,focus}) {
+    if(!focus||!month) return null;
+    const pm=focus.promoEnd?monthsAway(focus.promoEnd):null;
+    const why=(pm!==null&&pm<=6)?"Promo expires soon — will reset to high APR":
+        getEffApr(focus)>=20?`Costs ${fmtD(ipm(focus.balance,getEffApr(focus)))}/month in interest`:
+        "Smallest high-priority balance — fastest win";
     return (
         <Card border={t.amberD} bg={t.amberBg} padding={20}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
-                <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: t.amber, marginBottom: 3 }}>
-                        Month 1 — {month.label}
-                    </div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: t.bright, lineHeight: 1.2 }}>
-                        Your Attack Plan
-                    </div>
-                    <div style={{ fontSize: 13, color: t.muted, marginTop: 4 }}>
-                        Exact instructions. Follow these and the plan works.
-                    </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 11, color: t.subtle, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Focus debt</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: t.amber }}>{month.focusDebt}</div>
-                    {month.focusCleared && (
-                        <div style={{ fontSize: 12, color: t.green, marginTop: 2 }}>✓ Cleared this month</div>
-                    )}
-                </div>
+            <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:t.amber,marginBottom:12}}>
+                What To Do Today
             </div>
-
-            {/* Instructions */}
-            <div style={{ marginBottom: 16 }}>
-                {month.instructions.map((item, i) => (
-                    <InstructionLine key={i} item={item} index={i} />
-                ))}
-            </div>
-
-            {/* Month summary stats */}
-            <Grid cols={3} gap={8}>
-                <div style={{ border: `1px solid ${t.amberD}`, background: "#110e00", borderRadius: 9, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 11, color: t.subtle, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>Balance drop</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: t.green }}>
-                        {fmt(month.focusBalance - month.balanceAfterMonth)}
+            {[
+                {icon:"🛡",label:"Keep in savings",value:fmt(Number(month?.pool||2500)),color:t.muted},
+                {icon:"💥",label:`Pay now → ${focus.name}`,value:fmt(lumpSum||0),color:t.green,bold:true},
+                {icon:"📌",label:"Why this debt first",value:why,color:t.amber,small:true},
+                {icon:"⚡",label:"Non-negotiable rule",value:"No new credit card charges. Not one.",color:t.red,small:true},
+            ].map((r,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"flex-start",gap:12,padding:"10px 14px",
+                    borderRadius:9,background:t.bg1,border:`1px solid ${t.border}`,marginBottom:6}}>
+                    <span style={{fontSize:18,lineHeight:1,flexShrink:0,marginTop:2}}>{r.icon}</span>
+                    <div style={{flex:1}}>
+                        <div style={{fontSize:10,color:t.subtle,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:2}}>{r.label}</div>
+                        <div style={{fontSize:r.small?13:r.bold?20:16,fontWeight:r.bold?700:r.small?400:600,color:r.color,lineHeight:1.3}}>{r.value}</div>
                     </div>
-                    <div style={{ fontSize: 11, color: t.subtle }}>off {month.focusDebt}</div>
                 </div>
-                <div style={{ border: `1px solid ${t.amberD}`, background: "#110e00", borderRadius: 9, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 11, color: t.subtle, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>Remaining</div>
-                    <div style={{ fontSize: 18, fontWeight: 700, color: month.focusCleared ? t.green : t.bright }}>
-                        {month.focusCleared ? "CLEARED" : fmt(month.balanceAfterMonth)}
-                    </div>
-                    <div style={{ fontSize: 11, color: t.subtle }}>on {month.focusDebt}</div>
-                </div>
-                <div style={{ border: `1px solid ${t.amberD}`, background: "#110e00", borderRadius: 9, padding: "10px 12px" }}>
-                    <div style={{ fontSize: 11, color: t.subtle, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>Next target</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, color: t.blue, lineHeight: 1.2 }}>
-                        {month.nextTarget || "—"}
-                    </div>
-                    <div style={{ fontSize: 11, color: t.subtle }}>after this</div>
-                </div>
-            </Grid>
+            ))}
         </Card>
     );
 }
 
-// ─── ROADMAP SECTION ──────────────────────────────────────────────────────────
-
-function RoadmapSection({ months }) {
-    const [expanded, setExpanded] = useState(null);
-    const clearanceMonths = months.filter(m => m.focusCleared);
-
+function SafePay({safeData,state,onUpdate}) {
+    const [open,setOpen]=useState(false);
     return (
         <Card border={t.border}>
-            <SectionHeader
-                label="What Happens Next"
-                sub="The roll-forward sequence. Each cleared debt makes the next one faster."
-            />
-
-            {/* Clearance milestones */}
-            {clearanceMonths.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 12, color: t.subtle, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
-                        Projected milestones
-                    </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                        {clearanceMonths.map((m, i) => {
-                            const isLast = i === clearanceMonths.length - 1;
-                            return (
-                                <div key={m.month} style={{ display: "flex", gap: 0, alignItems: "stretch" }}>
-                                    {/* Timeline line */}
-                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 28, flexShrink: 0 }}>
-                                        <div style={{
-                                            width: 12, height: 12, borderRadius: "50%",
-                                            background: t.green, border: `2px solid ${t.greenD}`,
-                                            marginTop: 14, flexShrink: 0,
-                                        }} />
-                                        {!isLast && <div style={{ width: 2, flex: 1, background: t.border, marginTop: 2 }} />}
-                                    </div>
-                                    {/* Content */}
-                                    <div style={{ paddingBottom: isLast ? 0 : 16, paddingLeft: 10, paddingTop: 10 }}>
-                                        <div style={{ fontSize: 13, fontWeight: 600, color: t.green }}>
-                                            ✓ {m.focusDebt} cleared
-                                        </div>
-                                        <div style={{ fontSize: 12, color: t.muted }}>
-                                            ~{m.label} · Month {m.month}
-                                        </div>
-                                        {m.nextTarget && (
-                                            <div style={{ fontSize: 12, color: t.subtle, marginTop: 2 }}>
-                                                Attack pool grows · next target: {m.nextTarget}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                        {/* Debt free */}
-                        {clearanceMonths.length > 0 && (
-                            <div style={{ display: "flex", gap: 0, alignItems: "center" }}>
-                                <div style={{ width: 28, display: "flex", justifyContent: "center", flexShrink: 0 }}>
-                                    <div style={{ width: 16, height: 16, borderRadius: "50%", background: t.amber }} />
-                                </div>
-                                <div style={{ paddingLeft: 10 }}>
-                                    <div style={{ fontSize: 14, fontWeight: 700, color: t.amber }}>Debt-free</div>
-                                    <div style={{ fontSize: 12, color: t.muted }}>~{clearanceMonths[clearanceMonths.length - 1]?.label}</div>
-                                </div>
-                            </div>
-                        )}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginBottom:12}} onClick={()=>setOpen(o=>!o)}>
+                <Label text="Safe to Pay Today" sub="How much cash you can safely send to debt right now" />
+                <span style={{fontSize:12,color:t.subtle,flexShrink:0}}>{open?"▲ hide":"▼ configure"}</span>
+            </div>
+            <Grid cols={2} gap={10}>
+                <div style={{background:safeData.safe>0?t.greenBg:t.redBg,border:`1px solid ${safeData.safe>0?t.greenD:t.redD}`,borderRadius:10,padding:"14px 16px"}}>
+                    <div style={{fontSize:10,color:t.muted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>Safe to send today</div>
+                    <div style={{fontSize:26,fontWeight:700,color:safeData.safe>0?t.green:t.muted}}>{fmt(safeData.safe)}</div>
+                    <div style={{fontSize:12,color:safeData.safe>0?"#86efac":"#f87171",marginTop:4,lineHeight:1.5}}>
+                        {safeData.safe>0?`Send this to your focus debt now.`:`Build your buffer first before sending anything.`}
                     </div>
                 </div>
-            )}
-
-            {/* Month-by-month expandable list */}
-            <div style={{ fontSize: 12, color: t.subtle, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 8 }}>
-                Month-by-month detail
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {months.slice(0, 24).map((m, i) => (
-                    <div key={m.month}>
-                        <button
-                            onClick={() => setExpanded(expanded === m.month ? null : m.month)}
-                            style={{
-                                width: "100%", textAlign: "left",
-                                display: "flex", justifyContent: "space-between", alignItems: "center",
-                                padding: "10px 12px", borderRadius: 8,
-                                border: `1px solid ${m.focusCleared ? t.greenD : t.border}`,
-                                background: m.focusCleared ? t.greenBg : expanded === m.month ? t.bg2 : "transparent",
-                                cursor: "pointer", gap: 8,
-                            }}
-                        >
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                <span style={{ fontSize: 11, color: t.subtle, width: 52, flexShrink: 0 }}>
-                                    Mo {m.month}
-                                </span>
-                                <span style={{ fontSize: 13, color: m.focusCleared ? t.green : t.body, fontWeight: m.focusCleared ? 600 : 400 }}>
-                                    {m.focusCleared ? `✓ ${m.focusDebt} cleared` : `→ ${m.focusDebt}`}
-                                </span>
-                                {m.focusCleared && m.nextTarget && (
-                                    <span style={{ fontSize: 12, color: t.subtle }}>→ {m.nextTarget} next</span>
-                                )}
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-                                <span style={{ fontSize: 12, color: t.muted }}>{fmt(m.balanceAfterMonth)} left</span>
-                                <span style={{ fontSize: 12, color: t.subtle }}>{expanded === m.month ? "▲" : "▼"}</span>
-                            </div>
-                        </button>
-
-                        {expanded === m.month && (
-                            <div style={{ padding: "10px 12px 4px", borderLeft: `2px solid ${t.border}`, marginLeft: 6, marginBottom: 4 }}>
-                                {m.instructions.map((item, j) => (
-                                    <InstructionLine key={j} item={item} index={j} />
-                                ))}
-                                <div style={{ display: "flex", gap: 16, marginTop: 8, marginBottom: 4, fontSize: 12, color: t.subtle }}>
-                                    <span>Interest this month: {fmtExact(m.interestCost)}</span>
-                                    <span>Attack pool: {fmt(m.attackPool)}/mo</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                ))}
-            </div>
-        </Card>
-    );
-}
-
-// ─── SAVINGS CONFIG ───────────────────────────────────────────────────────────
-
-function SavingsConfig({ state, onUpdate }) {
-    const savingsBalance = Number(state.savingsBalance) || 0;
-    const emergencyTarget = Number(state.emergencyTarget) || 2500;
-
-    return (
-        <Card border={t.border}>
-            <SectionHeader
-                label="Savings & Buffer"
-                sub="Set your current savings and how much to keep as an emergency buffer. The rest becomes your lump sum."
-            />
-            <Grid cols={2} gap={12}>
-                <div>
-                    <div style={{ fontSize: 13, color: t.body, marginBottom: 6 }}>Current savings balance ($)</div>
-                    <input
-                        type="number"
-                        value={savingsBalance || ""}
-                        onChange={e => onUpdate({ ...state, savingsBalance: parseFloat(e.target.value) || 0 })}
-                        style={{
-                            width: "100%", minHeight: 44, borderRadius: 9,
-                            border: `1px solid ${t.border}`, background: t.bg2,
-                            color: t.bright, padding: "10px 12px", fontSize: 15,
-                            outline: "none", boxSizing: "border-box",
-                        }}
-                    />
-                </div>
-                <div>
-                    <div style={{ fontSize: 13, color: t.body, marginBottom: 6 }}>Emergency buffer to keep ($)</div>
-                    <input
-                        type="number"
-                        value={emergencyTarget || ""}
-                        onChange={e => onUpdate({ ...state, emergencyTarget: parseFloat(e.target.value) || 0 })}
-                        style={{
-                            width: "100%", minHeight: 44, borderRadius: 9,
-                            border: `1px solid ${t.border}`, background: t.bg2,
-                            color: t.bright, padding: "10px 12px", fontSize: 15,
-                            outline: "none", boxSizing: "border-box",
-                        }}
-                    />
-                    <div style={{ fontSize: 12, color: t.subtle, marginTop: 5 }}>
-                        Lump sum available: <strong style={{ color: t.green }}>{fmt(Math.max(0, savingsBalance - emergencyTarget))}</strong>
+                <div style={{background:t.bg2,border:`1px solid ${t.border}`,borderRadius:10,padding:"14px 16px"}}>
+                    <div style={{fontSize:10,color:t.muted,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>Keep in account</div>
+                    <div style={{fontSize:26,fontWeight:700,color:t.amber}}>{fmt(safeData.keep)}</div>
+                    <div style={{fontSize:12,color:t.subtle,marginTop:4,lineHeight:1.5}}>
+                        Do not send more than {fmt(safeData.safe)} or you'll need the cards again.
                     </div>
                 </div>
             </Grid>
+            {open&&(
+                <div style={{marginTop:16,paddingTop:16,borderTop:`1px solid ${t.border}`}}>
+                    <Grid cols={2} gap={12}>
+                        <Inp label="Cash/savings on hand ($)" value={state.savingsBalance} onChange={v=>onUpdate({...state,savingsBalance:v})} />
+                        <Inp label="Emergency buffer to keep ($)" value={state.emergencyTarget} onChange={v=>onUpdate({...state,emergencyTarget:v})}
+                            help={`Lump sum: ${fmt(Math.max(0,(state.savingsBalance||0)-(state.emergencyTarget||2500)))}`} />
+                        <Inp label="Upcoming bills before next paycheck ($)" value={state.upcomingBills} onChange={v=>onUpdate({...state,upcomingBills:v})} />
+                        <Inp label="Minimum payments due before paycheck ($)" value={state.upcomingMins} onChange={v=>onUpdate({...state,upcomingMins:v})} />
+                        <Inp label="Essential cash needed before paycheck ($)" value={state.essentialCash} onChange={v=>onUpdate({...state,essentialCash:v})} />
+                    </Grid>
+                </div>
+            )}
         </Card>
     );
 }
 
-// ─── EMPTY STATE ──────────────────────────────────────────────────────────────
-
-function EmptyState({ reason }) {
+function PaycheckPlan({state,onUpdate,prioritized}) {
+    const [open,setOpen]=useState(false);
+    const amt=Number(state.paycheckAmount)||0;
+    const bills=Number(state.paycheckBills)||0;
+    const mins=Number(state.paycheckMins)||0;
+    const ess=Number(state.paycheckEssentials)||0;
+    const attack=Math.max(0,amt-bills-mins-ess);
+    const focus=prioritized[0];
     return (
         <Card border={t.border}>
-            <div style={{ padding: "20px 0", textAlign: "center" }}>
-                <div style={{ fontSize: 28, marginBottom: 12 }}>🗺️</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: t.bright, marginBottom: 6 }}>Attack Map needs more data</div>
-                <div style={{ fontSize: 13, color: t.muted, lineHeight: 1.7 }}>{reason}</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer",marginBottom:amt>0?12:0}} onClick={()=>setOpen(o=>!o)}>
+                <Label text="Next Paycheck Plan" sub="Exact split of your next paycheck" />
+                <span style={{fontSize:12,color:t.subtle,flexShrink:0}}>{open?"▲ hide":"▼ set up"}</span>
             </div>
+            {amt>0&&(
+                <div style={{display:"flex",flexDirection:"column",gap:5,marginBottom:open?16:0}}>
+                    {[
+                        {label:"Paycheck received",value:fmt(amt),color:t.green},
+                        {label:"Hold for bills",value:`− ${fmt(bills)}`,color:t.red},
+                        {label:"Hold for minimums",value:`− ${fmt(mins)}`,color:t.red},
+                        {label:"Hold for essentials",value:`− ${fmt(ess)}`,color:t.red},
+                        {label:`Send to ${focus?.name||"focus debt"}`,value:fmt(attack),color:t.amber,bold:true},
+                    ].map((r,i)=>(
+                        <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                            padding:"9px 14px",borderRadius:8,
+                            background:r.bold?t.amberBg:"transparent",border:`1px solid ${r.bold?t.amberD:t.border}`}}>
+                            <span style={{fontSize:13,color:r.bold?t.amber:t.body,fontWeight:r.bold?700:400}}>{r.label}</span>
+                            <span style={{fontSize:14,fontWeight:700,color:r.color}}>{r.value}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+            {open&&(
+                <div style={{paddingTop:16,borderTop:`1px solid ${t.border}`}}>
+                    <Grid cols={2} gap={12}>
+                        <Inp label="Paycheck amount ($)" value={state.paycheckAmount} onChange={v=>onUpdate({...state,paycheckAmount:v})} />
+                        <Inp label="Bills from this paycheck ($)" value={state.paycheckBills} onChange={v=>onUpdate({...state,paycheckBills:v})} />
+                        <Inp label="Minimum payments ($)" value={state.paycheckMins} onChange={v=>onUpdate({...state,paycheckMins:v})} />
+                        <Inp label="Essential spending ($)" value={state.paycheckEssentials} onChange={v=>onUpdate({...state,paycheckEssentials:v})} />
+                    </Grid>
+                </div>
+            )}
         </Card>
     );
 }
 
-// ─── MAIN EXPORT ──────────────────────────────────────────────────────────────
-
-export default function AttackMap({ state, onUpdate }) {
-    const isMobile = window.innerWidth <= 768;
-
-    const model = useMemo(() => {
-        const { income, essentialExpenses, allMinimums, surplus } = calcSurplus(state);
-        const savingsBalance = Number(state.savingsBalance) || 0;
-        const emergencyTarget = Number(state.emergencyTarget) ||
-            calcEmergencyBuffer(essentialExpenses, allMinimums);
-        const lumpSum = Math.max(0, savingsBalance - emergencyTarget);
-
-        const prioritized = prioritizeDebts(state.creditCards, state.loans);
-
-        // Monthly interest across all debts
-        const monthlyInterest = prioritized.reduce(
-            (s, d) => s + interestPerMonth(d.balance, getEffectiveApr(d)), 0
-        );
-
-        const months = prioritized.length > 0 && surplus > 0
-            ? simulateAttackMap(prioritized, surplus, lumpSum)
-            : [];
-
-        return {
-            income,
-            essentialExpenses,
-            allMinimums,
-            surplus,
-            savingsBalance,
-            emergencyTarget,
-            lumpSum,
-            prioritized,
-            monthlyInterest,
-            months,
-        };
-    }, [state]);
-
-    const hasDebts = model.prioritized.length > 0;
-    const hasIncome = model.income > 0;
-    const hasExpenses = model.essentialExpenses > 0 || model.allMinimums > 0;
-
+function RiskSection({risk}) {
+    const oc={green:{color:t.green,bg:t.greenBg,border:t.greenD,label:"Stable"},
+        amber:{color:t.amber,bg:t.amberBg,border:t.amberD,label:"Watch"},
+        red:{color:t.red,bg:t.redBg,border:t.redD,label:"Urgent"}}[risk.overall];
     return (
-        <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 980, margin: "0 auto", padding: "0 0 48px" }}>
-
-            {/* Header */}
-            <div>
-                <h2 style={{ fontSize: 14, fontWeight: 700, color: t.bright, margin: "0 0 4px", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                    Debt Attack Map
-                </h2>
-                <p style={{ fontSize: 13, color: t.muted, margin: 0, lineHeight: 1.7 }}>
-                    You don't need to decide what to pay. This tells you exactly what to pay first, how much, and why.
-                </p>
+        <Card border={oc.border} bg={oc.bg}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:risk.flags.length?12:0}}>
+                <Label text="Risk Status" />
+                <span style={{fontSize:12,fontWeight:700,color:oc.color,background:t.bg1,border:`1px solid ${oc.border}`,borderRadius:8,padding:"4px 12px"}}>{oc.label}</span>
             </div>
+            {risk.flags.map((f,i)=>(
+                <div key={i} style={{display:"flex",gap:10,alignItems:"flex-start",padding:"8px 12px",
+                    borderRadius:8,background:t.bg1,border:`1px solid ${t.border}`,marginBottom:5}}>
+                    <span style={{color:f.level==="red"?t.red:t.amber,fontSize:13,flexShrink:0,marginTop:1}}>⚠</span>
+                    <span style={{fontSize:13,color:f.level==="red"?"#fca5a5":"#fcd34d",lineHeight:1.5}}>{f.text}</span>
+                </div>
+            ))}
+            {!risk.flags.length&&<div style={{fontSize:13,color:t.green}}>No active risk flags. Keep executing the plan.</div>}
+        </Card>
+    );
+}
 
-            {/* Savings config — always show so user can fill in */}
-            <SavingsConfig state={state} onUpdate={onUpdate} />
-
-            {/* Validation */}
-            {!hasIncome && (
-                <EmptyState reason="Add your income sources in the Income tab. The attack map needs to know what you bring home each month." />
-            )}
-            {hasIncome && !hasDebts && (
-                <EmptyState reason="Add your debts in the Debts tab. Once you have active debts, the attack map will build your plan." />
-            )}
-            {hasIncome && hasDebts && model.surplus <= 0 && (
-                <Card border={t.redD} bg={t.redBg}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: t.red, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                        ⚠ No Attack Surplus
+function Promos({promos}) {
+    if(!promos.length) return null;
+    const uc={critical:{b:t.redD,bg:t.redBg,pill:t.red},urgent:{b:t.amberD,bg:t.amberBg,pill:t.amber},watch:{b:t.border,bg:t.bg1,pill:t.muted}};
+    return (
+        <Card border={t.border}>
+            <Label text="Promo Deadlines" sub="These rates will reset. Time-sensitive." />
+            {promos.map((p,i)=>{
+                const c=uc[p.urgency];
+                return (
+                    <div key={p.id||i} style={{border:`1px solid ${c.b}`,background:c.bg,borderRadius:10,padding:"12px 16px",marginBottom:6}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:5}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <span style={{fontSize:13,fontWeight:600,color:t.bright}}>{p.name}</span>
+                                <Pill text={p.urgency.toUpperCase()} color={c.pill} bg={c.bg} border={c.b} />
+                            </div>
+                            <span style={{fontSize:12,color:t.muted}}>{p.monthsRemaining}mo remaining</span>
+                        </div>
+                        <div style={{fontSize:13,color:t.body,marginBottom:5}}>
+                            {fmt(p.balance)} at <strong style={{color:t.green}}>{fmtPct(p.promoApr)}</strong> → resets to <strong style={{color:t.red}}>{fmtPct(p.futureApr)}</strong>
+                        </div>
+                        <div style={{fontSize:13,fontWeight:600,color:c.pill}}>
+                            Pay at least {fmtD(p.required)}/month to clear before reset.
+                        </div>
                     </div>
-                    <div style={{ fontSize: 13, color: "#fca5a5", lineHeight: 1.7 }}>
-                        Your income ({fmt(model.income)}) minus essential expenses ({fmt(model.essentialExpenses)}) minus minimum debt payments ({fmt(model.allMinimums)}) leaves{" "}
-                        <strong>{fmt(model.surplus)}</strong> — nothing extra to attack with.
-                        Review your expenses or look for income to unlock the plan.
-                    </div>
-                </Card>
-            )}
+                );
+            })}
+        </Card>
+    );
+}
 
-            {hasIncome && hasDebts && model.surplus > 0 && (
-                <>
-                    {/* Position */}
-                    <PositionSection
-                        surplus={model.surplus}
-                        savingsBalance={model.savingsBalance}
-                        emergencyTarget={model.emergencyTarget}
-                        lumpSum={model.lumpSum}
-                        monthlyInterest={model.monthlyInterest}
-                        isMobile={isMobile}
-                    />
-
-                    {/* Attack order */}
-                    <PriorityStack prioritized={model.prioritized} isMobile={isMobile} />
-
-                    {/* This month's instructions */}
-                    <ThisMonthCard
-                        month={model.months[0]}
-                        surplus={model.surplus}
-                        lumpSum={model.lumpSum}
-                    />
-
-                    {/* Roadmap */}
-                    {model.months.length > 1 && (
-                        <RoadmapSection months={model.months} />
-                    )}
-
-                    {/* Budget breakdown — transparency */}
-                    <Card border={t.border}>
-                        <SectionHeader label="How the Numbers Work" sub="Where the surplus comes from." />
-                        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
-                            {[
-                                { label: "Monthly net income", value: fmt(model.income), color: t.green, sign: "+" },
-                                { label: "Essential expenses", value: fmt(model.essentialExpenses), color: t.red, sign: "−" },
-                                { label: "Minimum debt payments", value: fmt(model.allMinimums), color: t.red, sign: "−" },
-                            ].map((row, i) => (
-                                <div key={i} style={{
-                                    display: "flex", justifyContent: "space-between", alignItems: "center",
-                                    padding: "9px 0", borderBottom: `1px solid ${t.border}`,
-                                }}>
-                                    <span style={{ fontSize: 13, color: t.body }}>{row.label}</span>
-                                    <span style={{ fontSize: 14, fontWeight: 600, color: row.color }}>
-                                        {row.sign} {row.value}
-                                    </span>
-                                </div>
-                            ))}
-                            <div style={{
-                                display: "flex", justifyContent: "space-between", alignItems: "center",
-                                padding: "12px 0", marginTop: 2,
-                            }}>
-                                <span style={{ fontSize: 14, fontWeight: 700, color: t.bright }}>Monthly attack surplus</span>
-                                <span style={{ fontSize: 20, fontWeight: 700, color: model.surplus > 0 ? t.green : t.red }}>
-                                    {fmt(model.surplus)}/mo
-                                </span>
+function AttackOrder({prioritized}) {
+    const active=prioritized.filter(d=>d.balance>0);
+    return (
+        <Card border={t.border}>
+            <Label text="Attack Order" sub="Pay in this exact order. Do not skip to another debt." />
+            {active.map((d,i)=>{
+                const isFirst=i===0;
+                const pm=d.promoEnd?monthsAway(d.promoEnd):null;
+                const soon=pm!==null&&pm<=6&&pm>=0;
+                return (
+                    <div key={d.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 14px",
+                        borderRadius:10,border:`1px solid ${isFirst?t.amberD:t.border}`,
+                        background:isFirst?t.amberBg:t.bg2,marginBottom:6}}>
+                        <div style={{width:24,height:24,borderRadius:"50%",background:isFirst?t.amber:t.border,
+                            color:isFirst?"#111":t.subtle,fontSize:12,fontWeight:700,
+                            display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{i+1}</div>
+                        <div style={{flex:1,minWidth:0}}>
+                            <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
+                                <span style={{fontSize:14,fontWeight:isFirst?700:500,color:isFirst?t.amber:t.bright}}>{d.name}</span>
+                                {isFirst&&<Pill text="FOCUS NOW" color="#111" bg={t.amber} border={t.amber} />}
+                                {soon&&<Pill text={pm<=2?"CRITICAL":"PROMO ENDING"} color={pm<=2?t.red:t.amber} bg={pm<=2?t.redBg:t.amberBg} border={pm<=2?t.redD:t.amberD} />}
+                            </div>
+                            <div style={{fontSize:12,color:t.muted}}>
+                                {fmt(d.balance)} · {fmtPct(getEffApr(d))} APR{soon&&getFutApr(d)>getEffApr(d)&&<span style={{color:t.red}}> → {fmtPct(getFutApr(d))}</span>} · min {fmt(d.minPayment)}/mo
                             </div>
                         </div>
-                    </Card>
-                </>
+                        <div style={{textAlign:"right",flexShrink:0}}>
+                            <div style={{fontSize:13,fontWeight:600,color:t.red}}>{fmtD(ipm(d.balance,getEffApr(d)))}/mo</div>
+                            <div style={{fontSize:10,color:t.subtle}}>interest</div>
+                        </div>
+                    </div>
+                );
+            })}
+        </Card>
+    );
+}
+
+function ThisMonth({month,lumpSum}) {
+    if(!month) return null;
+    return (
+        <Card border={t.amberD} bg={t.amberBg} padding={20}>
+            <div style={{display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:14}}>
+                <div>
+                    <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:t.amber,marginBottom:3}}>Month 1 — {month.label}</div>
+                    <div style={{fontSize:19,fontWeight:700,color:t.bright}}>Payment Instructions</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                    <div style={{fontSize:10,color:t.subtle,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>Focus</div>
+                    <div style={{fontSize:16,fontWeight:700,color:t.amber}}>{month.focusDebt}</div>
+                    {month.cleared&&<div style={{fontSize:12,color:t.green}}>✓ Cleared this month</div>}
+                </div>
+            </div>
+            <div style={{marginBottom:14}}>{month.instructions.map((item,i)=><ILine key={i} item={item} />)}</div>
+            <Grid cols={3} gap={8}>
+                {[
+                    {label:"Balance drop",value:fmt(month.focusBalance-month.balAfter),color:t.green},
+                    {label:"Remaining",value:month.cleared?"CLEARED":fmt(month.balAfter),color:month.cleared?t.green:t.bright},
+                    {label:"Next target",value:month.nextTarget||"—",color:t.blue},
+                ].map((s,i)=>(
+                    <div key={i} style={{background:"#110e00",border:`1px solid ${t.amberD}`,borderRadius:9,padding:"10px 12px"}}>
+                        <div style={{fontSize:10,color:t.subtle,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:3}}>{s.label}</div>
+                        <div style={{fontSize:15,fontWeight:700,color:s.color,lineHeight:1.2}}>{s.value}</div>
+                    </div>
+                ))}
+            </Grid>
+        </Card>
+    );
+}
+
+function MinWarnings({dangers}) {
+    if(!dangers.length) return null;
+    const lc={critical:{c:t.red,bg:t.redBg,b:t.redD},danger:{c:t.red,bg:t.redBg,b:t.redD},warning:{c:t.amber,bg:t.amberBg,b:t.amberD}};
+    return (
+        <Card border={t.border}>
+            <Label text="Minimum Payment Warnings" sub="These debts are barely moving. Paying minimums here doesn't work." />
+            {dangers.map((d,i)=>{
+                const lv=lc[d.level];
+                return (
+                    <div key={d.id||i} style={{border:`1px solid ${lv.b}`,background:lv.bg,borderRadius:9,padding:"10px 14px",marginBottom:6}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                            <span style={{fontSize:13,fontWeight:600,color:t.bright}}>{d.name}</span>
+                            <Pill text={d.level.toUpperCase()} color={lv.c} bg={lv.bg} border={lv.b} />
+                        </div>
+                        <div style={{fontSize:13,color:lv.c,marginBottom:4,fontWeight:500}}>{d.msg}</div>
+                        <div style={{fontSize:12,color:t.muted}}>Payment {fmtD(d.payment)}/mo · Interest {fmtD(d.interest)}/mo · {fmtPct(d.share*100)} of payment is interest</div>
+                    </div>
+                );
+            })}
+        </Card>
+    );
+}
+
+function Lockout({state,onUpdate,prioritized}) {
+    const cards=(state.creditCards??[]).filter(c=>Number(c.balance)>0||Number(c.monthlySpend)>0);
+    if(!cards.length) return null;
+    const focusId=prioritized[0]?.id;
+    const lockouts=state.cardLockouts||{};
+    const fields=[{key:"noSpend",label:"No spending"},{key:"autopayOff",label:"Autopay off"},{key:"frozen",label:"Frozen"},{key:"stored",label:"Card stored"}];
+    function toggle(id,field) {
+        const cur=lockouts[id]||{};
+        onUpdate({...state,cardLockouts:{...lockouts,[id]:{...cur,[field]:!cur[field]}}});
+    }
+    return (
+        <Card border={t.border}>
+            <Label text="Card Lockout Tracker" sub="Recovery mode. Check off each step for every payoff card." />
+            {cards.map(card=>{
+                const lock=lockouts[card.id]||{};
+                const isFocus=card.id===focusId;
+                const hasSpend=Number(card.monthlySpend)>0;
+                const done=fields.filter(f=>lock[f.key]).length;
+                return (
+                    <div key={card.id} style={{border:`1px solid ${hasSpend?t.redD:isFocus?t.amberD:t.border}`,
+                        background:hasSpend?t.redBg:isFocus?t.amberBg:t.bg2,borderRadius:10,padding:"12px 14px",marginBottom:6}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:6,marginBottom:6}}>
+                            <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <span style={{fontSize:13,fontWeight:600,color:isFocus?t.amber:t.bright}}>{card.name}</span>
+                                {isFocus&&<Pill text="FOCUS DEBT" color="#111" bg={t.amber} border={t.amber} />}
+                                {hasSpend&&<Pill text="⚠ NEW CHARGES" color={t.red} bg={t.redBg} border={t.redD} />}
+                            </div>
+                            <span style={{fontSize:11,color:t.subtle}}>{done}/{fields.length} done</span>
+                        </div>
+                        {hasSpend&&<div style={{fontSize:13,color:t.red,marginBottom:8,fontWeight:600}}>New charges detected ({fmt(card.monthlySpend)}/mo). This card is in recovery mode — do not use it.</div>}
+                        {isFocus&&!hasSpend&&<div style={{fontSize:13,color:t.amber,marginBottom:8}}>This card is in recovery mode. Do not use it for new purchases.</div>}
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                            {fields.map(f=>(
+                                <button key={f.key} onClick={()=>toggle(card.id,f.key)}
+                                    style={{padding:"6px 11px",borderRadius:7,fontSize:12,cursor:"pointer",fontWeight:lock[f.key]?700:400,
+                                        border:`1px solid ${lock[f.key]?t.greenD:t.border}`,
+                                        background:lock[f.key]?t.greenBg:t.bg1,color:lock[f.key]?t.green:t.muted}}>
+                                    {lock[f.key]?"✓ ":""}{f.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                );
+            })}
+        </Card>
+    );
+}
+
+function MilestoneSection({milestones}) {
+    return (
+        <Card border={t.border}>
+            <Label text="Milestones" />
+            {milestones.completed.length>0&&(
+                <div style={{marginBottom:12}}>
+                    <div style={{fontSize:10,color:t.subtle,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Achieved</div>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                        {milestones.completed.map((m,i)=>(
+                            <span key={i} style={{background:t.greenBg,border:`1px solid ${t.greenD}`,borderRadius:6,
+                                padding:"4px 10px",fontSize:12,color:"#86efac",fontWeight:500}}>✓ {m.label}</span>
+                        ))}
+                    </div>
+                </div>
             )}
+            <div style={{fontSize:10,color:t.subtle,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:6}}>Next wins</div>
+            {milestones.upcoming.map((m,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 12px",borderRadius:8,
+                    background:i===0?t.amberBg:t.bg2,border:`1px solid ${i===0?t.amberD:t.border}`,marginBottom:5}}>
+                    <span style={{color:i===0?t.amber:t.subtle,fontSize:15}}>{i===0?"🎯":"○"}</span>
+                    <span style={{fontSize:13,color:i===0?t.amber:t.muted}}>{m.label}</span>
+                </div>
+            ))}
+        </Card>
+    );
+}
+
+function Leaks({leaks}) {
+    if(!leaks.length) return null;
+    return (
+        <Card border={t.border}>
+            <Label text="Spending Leaks" sub="Optional spending that's slowing your payoff date." />
+            {leaks.map((l,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",
+                    padding:"10px 14px",borderRadius:8,background:t.bg2,border:`1px solid ${t.border}`,marginBottom:5}}>
+                    <div>
+                        <div style={{fontSize:13,fontWeight:500,color:t.bright,marginBottom:2}}>{l.category}</div>
+                        <div style={{fontSize:12,color:t.muted}}>{fmt(l.optional)}/mo optional · {fmt(l.total)}/mo total</div>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                        <div style={{fontSize:13,fontWeight:600,color:t.amber}}>+{l.monthsSaved}mo sooner</div>
+                        <div style={{fontSize:11,color:t.subtle}}>if cut</div>
+                    </div>
+                </div>
+            ))}
+        </Card>
+    );
+}
+
+function Roadmap({months}) {
+    const [expanded,setExpanded]=useState(null);
+    const clearances=months.filter(m=>m.cleared);
+    return (
+        <Card border={t.border}>
+            <Label text="Payoff Roadmap" sub="Roll-forward sequence. Each cleared debt accelerates the next." />
+            {clearances.length>0&&(
+                <div style={{marginBottom:16}}>
+                    {clearances.map((m,i)=>{
+                        const isLast=i===clearances.length-1;
+                        return (
+                            <div key={m.month} style={{display:"flex",gap:0}}>
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:28,flexShrink:0}}>
+                                    <div style={{width:12,height:12,borderRadius:"50%",background:t.green,border:`2px solid ${t.greenD}`,marginTop:14,flexShrink:0}} />
+                                    {!isLast&&<div style={{width:2,flex:1,background:t.border,marginTop:2}} />}
+                                </div>
+                                <div style={{paddingBottom:isLast?0:16,paddingLeft:10,paddingTop:10}}>
+                                    <div style={{fontSize:13,fontWeight:600,color:t.green}}>✓ {m.focusDebt} cleared</div>
+                                    <div style={{fontSize:12,color:t.muted}}>~{m.label} · Month {m.month}</div>
+                                    {m.nextTarget&&<div style={{fontSize:12,color:t.subtle,marginTop:2}}>→ {m.nextTarget} next · attack pool grows</div>}
+                                </div>
+                            </div>
+                        );
+                    })}
+                    <div style={{display:"flex",gap:0,alignItems:"center",marginTop:4}}>
+                        <div style={{width:28,display:"flex",justifyContent:"center",flexShrink:0}}>
+                            <div style={{width:16,height:16,borderRadius:"50%",background:t.amber}} />
+                        </div>
+                        <div style={{paddingLeft:10}}>
+                            <div style={{fontSize:14,fontWeight:700,color:t.amber}}>Debt-free</div>
+                            <div style={{fontSize:12,color:t.muted}}>~{clearances[clearances.length-1]?.label}</div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            <div style={{fontSize:10,color:t.subtle,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:8}}>Month detail</div>
+            {months.slice(0,24).map(m=>(
+                <div key={m.month}>
+                    <button onClick={()=>setExpanded(expanded===m.month?null:m.month)}
+                        style={{width:"100%",textAlign:"left",display:"flex",justifyContent:"space-between",alignItems:"center",
+                            padding:"9px 12px",borderRadius:8,marginBottom:4,cursor:"pointer",
+                            border:`1px solid ${m.cleared?t.greenD:t.border}`,
+                            background:m.cleared?t.greenBg:expanded===m.month?t.bg2:"transparent"}}>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                            <span style={{fontSize:11,color:t.subtle,width:48,flexShrink:0}}>Mo {m.month}</span>
+                            <span style={{fontSize:13,color:m.cleared?t.green:t.body,fontWeight:m.cleared?600:400}}>
+                                {m.cleared?`✓ ${m.focusDebt} cleared`:`→ ${m.focusDebt}`}
+                            </span>
+                            {m.cleared&&m.nextTarget&&<span style={{fontSize:12,color:t.subtle}}>→ {m.nextTarget}</span>}
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
+                            <span style={{fontSize:12,color:t.muted}}>{fmt(m.balAfter)} left</span>
+                            <span style={{fontSize:11,color:t.subtle}}>{expanded===m.month?"▲":"▼"}</span>
+                        </div>
+                    </button>
+                    {expanded===m.month&&(
+                        <div style={{padding:"6px 12px 4px",borderLeft:`2px solid ${t.border}`,marginLeft:6,marginBottom:4}}>
+                            {m.instructions.map((item,j)=><ILine key={j} item={item} />)}
+                            <div style={{fontSize:11,color:t.subtle,marginTop:6,display:"flex",gap:16,paddingBottom:4}}>
+                                <span>Interest: {fmtD(m.totalInterest)}</span>
+                                <span>Attack pool: {fmt(m.pool)}/mo</span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            ))}
+        </Card>
+    );
+}
+
+function Budget({income,essential,minimums,surplus}) {
+    return (
+        <Card border={t.border}>
+            <Label text="How the Surplus Is Calculated" />
+            {[{l:"Monthly net income",v:fmt(income),c:t.green,s:"+"},{l:"Essential expenses",v:fmt(essential),c:t.red,s:"−"},{l:"Minimum payments",v:fmt(minimums),c:t.red,s:"−"}].map((r,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 0",borderBottom:`1px solid ${t.border}`}}>
+                    <span style={{fontSize:13,color:t.body}}>{r.l}</span>
+                    <span style={{fontSize:14,fontWeight:600,color:r.c}}>{r.s} {r.v}</span>
+                </div>
+            ))}
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0"}}>
+                <span style={{fontSize:14,fontWeight:700,color:t.bright}}>Monthly attack surplus</span>
+                <span style={{fontSize:20,fontWeight:700,color:surplus>0?t.green:t.red}}>{fmt(surplus)}/mo</span>
+            </div>
+        </Card>
+    );
+}
+
+// ─── MAIN ─────────────────────────────────────────────────────────────────────
+export default function AttackMap({state,onUpdate}) {
+    const model = useMemo(()=>{
+        const {income,essential,minimums,surplus}=calcSurplus(state);
+        const savingsBalance=Number(state.savingsBalance)||0;
+        const emergencyTarget=Number(state.emergencyTarget)||2500;
+        const lumpSum=Math.max(0,savingsBalance-emergencyTarget);
+        const prioritized=prioritizeDebts(state.creditCards,state.loans);
+        const safeData=calcSafeToPay(state);
+        const promos=calcPromos(state.creditCards);
+        const allDebts=normalizeDebts(state.creditCards,state.loans);
+        const dangers=calcDangers(allDebts);
+        const risk=calcRisk(state,surplus,prioritized,promos);
+        const milestones=calcMilestones(state,prioritized);
+        const leaks=calcLeaks(state,surplus);
+        const months=prioritized.length>0&&surplus>0?simulate(prioritized,surplus,lumpSum):[];
+        const monthlyInterest=prioritized.reduce((s,d)=>s+ipm(d.balance,getEffApr(d)),0);
+        return {income,essential,minimums,surplus,savingsBalance,emergencyTarget,lumpSum,
+            prioritized,safeData,promos,dangers,risk,milestones,leaks,months,monthlyInterest};
+    },[state]);
+
+    const hasDebts=model.prioritized.length>0;
+    const hasIncome=model.income>0;
+    const focus=model.prioritized[0]||null;
+
+    return (
+        <div style={{display:"flex",flexDirection:"column",gap:14,maxWidth:980,margin:"0 auto",padding:"0 0 48px"}}>
+            <div>
+                <h2 style={{fontSize:13,fontWeight:700,color:t.bright,margin:"0 0 3px",letterSpacing:"0.04em",textTransform:"uppercase"}}>Debt Attack Map</h2>
+                <p style={{fontSize:13,color:t.muted,margin:0,lineHeight:1.7}}>You don't need to decide what to pay. This tells you what to pay first, how much, and why.</p>
+            </div>
+
+            {hasIncome&&hasDebts&&model.surplus>0&&<TodayCard month={model.months[0]} lumpSum={model.lumpSum} focus={focus} />}
+            <SafePay safeData={model.safeData} state={state} onUpdate={onUpdate} />
+
+            {!hasIncome&&<div style={{border:`1px solid ${t.border}`,background:t.bg1,borderRadius:12,padding:20,textAlign:"center"}}>
+                <div style={{fontSize:15,fontWeight:600,color:t.bright,marginBottom:6}}>Add your income first</div>
+                <div style={{fontSize:13,color:t.muted}}>Go to the Income tab and enter your take-home pay.</div>
+            </div>}
+
+            {hasIncome&&!hasDebts&&<div style={{border:`1px solid ${t.border}`,background:t.bg1,borderRadius:12,padding:20,textAlign:"center"}}>
+                <div style={{fontSize:15,fontWeight:600,color:t.bright,marginBottom:6}}>Add your debts</div>
+                <div style={{fontSize:13,color:t.muted}}>Go to the Debts tab and enter your cards and loans.</div>
+            </div>}
+
+            {hasIncome&&hasDebts&&model.surplus<=0&&<div style={{border:`1px solid ${t.redD}`,background:t.redBg,borderRadius:12,padding:16}}>
+                <div style={{fontSize:13,fontWeight:700,color:t.red,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em"}}>⚠ No Attack Surplus</div>
+                <div style={{fontSize:13,color:"#fca5a5",lineHeight:1.7}}>
+                    Income ({fmt(model.income)}) minus expenses ({fmt(model.essential)}) minus minimums ({fmt(model.minimums)}) leaves nothing to attack with. Review your expenses or find additional income.
+                </div>
+            </div>}
+
+            {hasIncome&&hasDebts&&model.surplus>0&&(<>
+                <PaycheckPlan state={state} onUpdate={onUpdate} prioritized={model.prioritized} />
+                <RiskSection risk={model.risk} />
+                {model.promos.length>0&&<Promos promos={model.promos} />}
+                <AttackOrder prioritized={model.prioritized} />
+                {model.months[0]&&<ThisMonth month={model.months[0]} lumpSum={model.lumpSum} />}
+                {model.dangers.length>0&&<MinWarnings dangers={model.dangers} />}
+                <Lockout state={state} onUpdate={onUpdate} prioritized={model.prioritized} />
+                <MilestoneSection milestones={model.milestones} />
+                {model.leaks.length>0&&<Leaks leaks={model.leaks} />}
+                {model.months.length>1&&<Roadmap months={model.months} />}
+                <Budget income={model.income} essential={model.essential} minimums={model.minimums} surplus={model.surplus} />
+            </>)}
         </div>
     );
 }
