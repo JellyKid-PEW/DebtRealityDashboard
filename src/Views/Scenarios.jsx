@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { normalizeDebtsForRanking, rankDebtsCanonical, normalizeToMonthly } from "../calculations.js";
 import {
     AreaChart,
     Area,
@@ -116,29 +117,8 @@ function interestThisMonth(balance, apr) {
 }
 
 function buildBaseDebts(state) {
-    const cards = (state.creditCards ?? []).map((c) => ({
-        id: c.id,
-        type: "card",
-        name: c.name || "Card",
-        balance: Number(c.balance) || 0,
-        apr: Number(c.apr) || 0,
-        promoApr: Number(c.promoApr) > 0 ? Number(c.promoApr) : null,
-        promoEndDate: getPromoEndDate(c),
-        minPayment: Number(c.minPayment) || 0,
-        monthlyPayment: Number(c.monthlyPayment) || Number(c.minPayment) || 0,
-    }));
-    const loans = (state.loans ?? []).map((l) => ({
-        id: l.id,
-        type: "loan",
-        name: l.name || "Loan",
-        balance: Number(l.balance) || 0,
-        apr: Number(l.apr) || 0,
-        promoApr: null,
-        promoEndDate: null,
-        minPayment: Number(l.monthlyPayment) || 0,
-        monthlyPayment: Number(l.monthlyPayment) || 0,
-    }));
-    return [...cards, ...loans].filter((d) => d.balance > 0);
+    // Use shared canonical normalization so Scenarios matches AttackMap and Trajectory
+    return normalizeDebtsForRanking(state.creditCards, state.loans).filter(d => d.balance > 0);
 }
 
 function cloneDebts(debts) {
@@ -152,38 +132,28 @@ function extraPoolFromDebts(debts) {
     );
 }
 
-function chooseStrategy(debts, nowMonth) {
-    const byApr = [...debts].sort(
-        (a, b) => effectiveApr(b, 0, nowMonth) - effectiveApr(a, 0, nowMonth)
-    );
-    const byBal = [...debts].sort((a, b) => a.balance - b.balance);
-    if (!byApr[0] || !byBal[0]) return "avalanche";
-    const highApr = effectiveApr(byApr[0], 0, nowMonth);
-    const veryHighInterest = sumArr(
-        debts.filter((d) => effectiveApr(d, 0, nowMonth) >= 20),
-        (d) => interestThisMonth(d.balance, effectiveApr(d, 0, nowMonth))
-    );
-    if (highApr - byBal[0].apr >= 6) return "avalanche";
-    if (byBal[0].balance <= 2500) return "snowball";
-    if (veryHighInterest >= 300) return "avalanche";
-    return "avalanche";
+function chooseStrategy(debts) {
+    // Delegate to shared ranking — strategy label not needed, just use canonical order
+    return "canonical"; // used only as a signal to sortedForStrategy
 }
 
 function sortedForStrategy(debts, strategy, mOffset, nowMonth) {
-    const ordered = [...debts];
-    if (strategy === "snowball") {
-        ordered.sort((a, b) =>
-            a.balance !== b.balance
-                ? a.balance - b.balance
-                : effectiveApr(b, mOffset, nowMonth) - effectiveApr(a, mOffset, nowMonth)
-        );
-    } else {
-        ordered.sort((a, b) => {
-            const diff = effectiveApr(b, mOffset, nowMonth) - effectiveApr(a, mOffset, nowMonth);
-            return diff !== 0 ? diff : b.balance - a.balance;
-        });
-    }
-    return ordered;
+    // Use shared canonical ranking for consistency with AttackMap and Trajectory
+    // effectiveApr at monthOffset is used for time-aware sorting within simulation
+    return [...debts].sort((a, b) => {
+        const aprA = effectiveApr(a, mOffset, nowMonth);
+        const aprB = effectiveApr(b, mOffset, nowMonth);
+        // Promo urgency first
+        const aUrgent = a.isPromoUrgent ?? false;
+        const bUrgent = b.isPromoUrgent ?? false;
+        if (aUrgent && !bUrgent) return -1;
+        if (bUrgent && !aUrgent) return 1;
+        // Highest APR
+        const aprDiff = aprB - aprA;
+        if (Math.abs(aprDiff) > 1.5) return aprDiff;
+        // Smaller balance as tiebreak
+        return a.balance - b.balance;
+    });
 }
 
 // ─── TRAJECTORY ENGINE ────────────────────────────────────────────────────────
@@ -1008,9 +978,397 @@ function ScenarioPurchaseCost({ state }) {
 
 // ─── MAIN EXPORT ──────────────────────────────────────────────────────────────
 
+
+// ─── CONSOLIDATION RECOMMENDER ENGINE ────────────────────────────────────────
+
+function amortizedPayment(balance, aprPct, termMonths) {
+    const r = aprPct / 100 / 12;
+    if (balance <= 0) return 0;
+    if (r === 0) return balance / termMonths;
+    return (balance * r * Math.pow(1 + r, termMonths)) / (Math.pow(1 + r, termMonths) - 1);
+}
+
+function totalInterestForTrajectory(debts, extraPool, strategy, nowMonth) {
+    // Run a simple simulation and sum all interest paid
+    let working = debts.map(d => ({ ...d, balance: Number(d.balance) || 0 }));
+    let pool = extraPool;
+    let totalInterest = 0;
+    for (let m = 0; m < 120; m++) {
+        const active = working.filter(d => d.balance > 0.01);
+        if (!active.length) break;
+        const ordered = sortedForStrategy(active, strategy, m, nowMonth);
+        for (const d of ordered) {
+            const interest = interestThisMonth(d.balance, effectiveApr(d, m, nowMonth));
+            d.balance += interest;
+            totalInterest += interest;
+        }
+        let payPool = sumArr(ordered, d => d.minPayment || 0) + pool;
+        for (const d of ordered) {
+            if (payPool <= 0) break;
+            const pay = Math.min(d.balance, payPool);
+            d.balance = Math.max(0, d.balance - pay);
+            payPool -= pay;
+        }
+        const cleared = working.filter(d => d.balance <= 0.01);
+        pool += sumArr(cleared, d => d.minPayment || 0);
+        working = working.filter(d => d.balance > 0.01);
+    }
+    return totalInterest;
+}
+
+function payoffMonths(debts, extraPool, strategy, nowMonth) {
+    let working = debts.map(d => ({ ...d, balance: Number(d.balance) || 0 }));
+    let pool = extraPool;
+    for (let m = 0; m < 120; m++) {
+        const active = working.filter(d => d.balance > 0.01);
+        if (!active.length) return m;
+        const ordered = sortedForStrategy(active, strategy, m, nowMonth);
+        for (const d of ordered) {
+            d.balance += interestThisMonth(d.balance, effectiveApr(d, m, nowMonth));
+        }
+        let payPool = sumArr(ordered, d => d.minPayment || 0) + pool;
+        for (const d of ordered) {
+            if (payPool <= 0) break;
+            const pay = Math.min(d.balance, payPool);
+            d.balance = Math.max(0, d.balance - pay);
+            payPool -= pay;
+        }
+        const cleared = working.filter(d => d.balance <= 0.01);
+        pool += sumArr(cleared, d => d.minPayment || 0);
+        working = working.filter(d => d.balance > 0.01);
+    }
+    return 120;
+}
+
+function weightedAvgApr(debts) {
+    const total = sumArr(debts, d => d.balance);
+    if (total === 0) return 0;
+    return sumArr(debts, d => d.balance * effectiveApr(d, 0, { getFullYear: () => new Date().getFullYear(), getMonth: () => new Date().getMonth() })) / total;
+}
+
+function evaluateConsolidation(subset, remaining, loanApr, termMonths, origFee, extraPool, strategy, nowMonth) {
+    if (!subset.length) return null;
+    const balance = sumArr(subset, d => d.balance);
+    if (balance <= 0) return null;
+
+    const loanBalance = balance + (origFee || 0);
+    const loanPayment = amortizedPayment(loanBalance, loanApr, termMonths);
+    const subsetMinPayments = sumArr(subset, d => d.minPayment || 0);
+    const subsetCurrentPayments = sumArr(subset, d => d.monthlyPayment || 0);
+
+    // Net payment change: new loan payment vs what we were paying
+    const paymentDelta = loanPayment - subsetCurrentPayments;
+
+    // Build the consolidated debt list
+    const newLoan = {
+        id: "__recom_loan__",
+        _type: "loan",
+        name: "Consolidation Loan",
+        balance: loanBalance,
+        apr: loanApr,
+        promoApr: null,
+        promoEnd: null,
+        promoMonthsLeft: null,
+        currentApr: loanApr,
+        futureApr: loanApr,
+        isPromoUrgent: false,
+        minPayment: loanPayment,
+        monthlyPayment: loanPayment,
+        monthlySpend: 0,
+        netMonthlyChange: -loanPayment,
+        limit: 0,
+        termRemainingMonths: termMonths,
+        extraPayment: 0,
+    };
+
+    const scenDebts = [...remaining, newLoan].filter(d => d.balance > 0);
+    // Extra pool: difference between what we were paying above minimums
+    const baseExtra = Math.max(0, extraPool - (subsetCurrentPayments - subsetMinPayments));
+    const scenExtra = Math.max(0, baseExtra + Math.max(0, subsetCurrentPayments - loanPayment));
+
+    const baseInterest = totalInterestForTrajectory(
+        [...subset, ...remaining], extraPool, strategy, nowMonth
+    );
+    const scenInterest = totalInterestForTrajectory(scenDebts, scenExtra, strategy, nowMonth) + origFee;
+    const interestSaved = baseInterest - scenInterest;
+
+    const baseMonths = payoffMonths([...subset, ...remaining], extraPool, strategy, nowMonth);
+    const scenMonths = payoffMonths(scenDebts, scenExtra, strategy, nowMonth);
+    const monthsSaved = baseMonths - scenMonths;
+
+    const subsetWtdApr = weightedAvgApr(subset);
+    const aprReduction = subsetWtdApr - loanApr;
+
+    // Recommendation logic
+    const warnings = [];
+    const disqualifiers = [];
+
+    if (loanApr >= subsetWtdApr) disqualifiers.push(`Loan APR (${loanApr.toFixed(1)}%) is not lower than the weighted average of debts being replaced (${subsetWtdApr.toFixed(1)}%)`);
+    if (interestSaved < 0) disqualifiers.push("Costs more interest overall than the current plan");
+    if (monthsSaved < 0) disqualifiers.push(`Extends payoff by ${Math.abs(monthsSaved)} months`);
+    if (paymentDelta > 200) warnings.push(`Monthly payment increases by $${paymentDelta.toFixed(0)} — verify this fits your budget`);
+    if (paymentDelta < -200) warnings.push("Lower monthly payment likely means longer term — check payoff date");
+    const hasSpendCards = subset.some(d => d._type === "card" && (d.monthlySpend || 0) > 0);
+    if (hasSpendCards) warnings.push("Some consolidated cards have active monthly spending — freeze them after consolidating");
+
+    return {
+        subset,
+        balance,
+        loanBalance,
+        loanPayment,
+        paymentDelta,
+        interestSaved,
+        monthsSaved,
+        aprReduction,
+        subsetWtdApr,
+        warnings,
+        disqualifiers,
+        recommended: disqualifiers.length === 0 && interestSaved > 0,
+        score: interestSaved - Math.max(0, -monthsSaved * 50), // penalize timeline extension
+    };
+}
+
+function findBestConfigurations(debts, loanApr, termMonths, origFee, extraPool, strategy, nowMonth) {
+    if (!debts.length) return [];
+
+    // Only consider debts where consolidation makes sense: APR > loan APR
+    // Sort by current APR descending — highest cost debts first
+    const candidates = [...debts].sort((a, b) =>
+        effectiveApr(b, 0, nowMonth) - effectiveApr(a, 0, nowMonth)
+    );
+
+    const configs = [];
+
+    // Strategy 1: All eligible debts (APR > loan APR)
+    const eligible = candidates.filter(d => effectiveApr(d, 0, nowMonth) > loanApr);
+    if (eligible.length > 0) {
+        const remaining = debts.filter(d => !eligible.find(e => e.id === d.id));
+        const result = evaluateConsolidation(eligible, remaining, loanApr, termMonths, origFee, extraPool, strategy, nowMonth);
+        if (result) configs.push({ ...result, label: "All high-APR debts" });
+    }
+
+    // Strategy 2: Top 1-3 highest APR debts individually and in combinations
+    const top = candidates.slice(0, Math.min(5, candidates.length));
+    for (let i = 0; i < top.length; i++) {
+        for (let j = i; j < top.length; j++) {
+            const subset = top.slice(i, j + 1);
+            if (subset.length === eligible.length && eligible.length > 0) continue; // already tested
+            const remaining = debts.filter(d => !subset.find(s => s.id === d.id));
+            const result = evaluateConsolidation(subset, remaining, loanApr, termMonths, origFee, extraPool, strategy, nowMonth);
+            if (result) configs.push({ ...result, label: subset.length === 1 ? subset[0].name + " only" : subset.map(d => d.name).join(" + ") });
+        }
+    }
+
+    // Deduplicate by subset IDs and sort by score
+    const seen = new Set();
+    return configs
+        .filter(c => {
+            const key = c.subset.map(d => d.id).sort().join(",");
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        })
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+}
+
+// ─── CONSOLIDATION RECOMMENDER UI ────────────────────────────────────────────
+
+function ScenarioConsolidationRecommender({ debts, extraPool, strategy, nowMonth }) {
+    const [loanApr, setLoanApr] = useState(12);
+    const [termMonths, setTermMonths] = useState(48);
+    const [origFee, setOrigFee] = useState(0);
+    const [origFeeType, setOrigFeeType] = useState("flat"); // flat | pct
+
+    const feeAmount = origFeeType === "pct"
+        ? (sumArr(debts, d => d.balance) * origFee / 100)
+        : origFee;
+
+    const configs = useMemo(() => {
+        if (!debts.length) return [];
+        return findBestConfigurations(debts, loanApr, termMonths, feeAmount, extraPool, strategy, nowMonth);
+    }, [debts, loanApr, termMonths, feeAmount, extraPool, strategy, nowMonth]);
+
+    const topRecommended = configs.find(c => c.recommended);
+    const hasAnyGood = configs.some(c => c.recommended);
+
+    const iStyle = {
+        minHeight: 42, borderRadius: 8, border: `1px solid ${t.border}`,
+        background: t.bg2, color: t.bright, padding: "8px 12px",
+        fontSize: 14, outline: "none", width: "100%",
+    };
+
+    return (
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Note text="Enter a loan offer and the app will find the optimal combination of debts to consolidate — testing every meaningful configuration automatically." />
+
+            {/* Loan offer inputs */}
+            <div style={{ border: `1px solid ${t.border}`, background: t.bg1, borderRadius: 12, padding: 16 }}>
+                <SectionLabel text="Loan Offer" />
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14 }}>
+                    <Field label="Offered APR (%)" help="The interest rate on the loan offer.">
+                        <input type="number" value={loanApr} min={0} step={0.1}
+                            onChange={e => setLoanApr(Math.max(0, Number(e.target.value) || 0))}
+                            style={iStyle} />
+                    </Field>
+                    <Field label="Term (months)">
+                        <select value={termMonths} onChange={e => setTermMonths(Number(e.target.value))} style={iStyle}>
+                            {[12, 24, 36, 48, 60, 72].map(n => (
+                                <option key={n} value={n}>{n} months ({Math.round(n / 12)} {n <= 12 ? "year" : "years"})</option>
+                            ))}
+                        </select>
+                    </Field>
+                    <Field label="Origination fee">
+                        <div style={{ display: "flex", gap: 6 }}>
+                            <input type="number" value={origFee} min={0}
+                                onChange={e => setOrigFee(Math.max(0, Number(e.target.value) || 0))}
+                                style={{ ...iStyle, flex: 1 }} />
+                            <select value={origFeeType} onChange={e => setOrigFeeType(e.target.value)}
+                                style={{ ...iStyle, width: 60, padding: "8px 6px" }}>
+                                <option value="flat">$</option>
+                                <option value="pct">%</option>
+                            </select>
+                        </div>
+                        {origFee > 0 && origFeeType === "pct" && (
+                            <div style={{ fontSize: 11, color: t.subtle, marginTop: 4 }}>
+                                = {fmtMoney(feeAmount)} on current total debt
+                            </div>
+                        )}
+                    </Field>
+                </div>
+            </div>
+
+            {/* Overall verdict */}
+            {configs.length > 0 && (
+                <div style={{
+                    border: `1px solid ${hasAnyGood ? t.greenD : t.redD}`,
+                    background: hasAnyGood ? t.greenBg : t.redBg,
+                    borderRadius: 12, padding: 18,
+                }}>
+                    <div style={{
+                        fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+                        color: hasAnyGood ? t.green : t.red, marginBottom: 8
+                    }}>
+                        {hasAnyGood ? "✓ Consolidation Can Help" : "✗ This Loan Doesn't Help"}
+                    </div>
+                    {hasAnyGood && topRecommended ? (
+                        <div style={{ fontSize: 14, color: "#86efac", lineHeight: 1.8 }}>
+                            <strong style={{ color: t.green }}>Best configuration:</strong>{" "}
+                            consolidate <strong>{topRecommended.subset.map(d => d.name).join(", ")}</strong>{" "}
+                            ({fmtMoney(topRecommended.balance)}) into a {fmtPct(loanApr)} loan.
+                            This saves approximately <strong style={{ color: t.green }}>{fmtMoney(topRecommended.interestSaved)}</strong> in
+                            interest and pays off <strong style={{ color: t.green }}>{topRecommended.monthsSaved} months sooner</strong>.
+                        </div>
+                    ) : (
+                        <div style={{ fontSize: 13, color: "#fca5a5", lineHeight: 1.8 }}>
+                            {configs[0]?.disqualifiers[0] || "No beneficial configuration found at this APR and term."}
+                            {" "}Try a lower APR or shorter term.
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Configuration results */}
+            {configs.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <SectionLabel text="Configurations Tested" sub="Ranked by total interest saved. Best option first." />
+                    {configs.map((cfg, i) => {
+                        const isTop = i === 0 && cfg.recommended;
+                        const borderColor = cfg.recommended ? t.greenD : cfg.disqualifiers.length ? t.redD : t.border;
+                        const bgColor = cfg.recommended ? t.greenBg : cfg.disqualifiers.length ? t.redBg : t.bg1;
+
+                        return (
+                            <div key={i} style={{ border: `1px solid ${borderColor}`, background: bgColor, borderRadius: 12, padding: 16 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8, marginBottom: 10 }}>
+                                    <div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                                            <span style={{ fontSize: 14, fontWeight: 700, color: cfg.recommended ? t.green : t.bright }}>
+                                                {cfg.label}
+                                            </span>
+                                            {isTop && (
+                                                <span style={{
+                                                    fontSize: 10, fontWeight: 700, background: t.green, color: "#052e16",
+                                                    padding: "2px 7px", borderRadius: 4, letterSpacing: "0.08em"
+                                                }}>
+                                                    RECOMMENDED
+                                                </span>
+                                            )}
+                                            {cfg.disqualifiers.length > 0 && (
+                                                <span style={{
+                                                    fontSize: 10, fontWeight: 700, background: t.redBg, color: t.red,
+                                                    border: `1px solid ${t.redD}`, padding: "2px 7px", borderRadius: 4
+                                                }}>
+                                                    NOT RECOMMENDED
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div style={{ fontSize: 12, color: t.muted }}>
+                                            {cfg.subset.map(d => `${d.name} (${fmtMoney(d.balance)} @ ${fmtPct(effectiveApr(d, 0, nowMonth))})`).join(" + ")}
+                                        </div>
+                                    </div>
+                                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                                        {cfg.interestSaved > 0 ? (
+                                            <>
+                                                <div style={{ fontSize: 16, fontWeight: 700, color: t.green }}>{fmtMoney(cfg.interestSaved)} saved</div>
+                                                <div style={{ fontSize: 12, color: t.muted }}>{cfg.monthsSaved > 0 ? `${cfg.monthsSaved}mo sooner` : cfg.monthsSaved < 0 ? `${Math.abs(cfg.monthsSaved)}mo slower` : "same timeline"}</div>
+                                            </>
+                                        ) : (
+                                            <div style={{ fontSize: 14, fontWeight: 600, color: t.red }}>{fmtMoney(Math.abs(cfg.interestSaved))} more interest</div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Key numbers */}
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8, marginBottom: 10 }}>
+                                    {[
+                                        { label: "Consolidated balance", value: fmtMoney(cfg.balance) },
+                                        { label: "New payment", value: fmtMoneyExact(cfg.loanPayment) + "/mo" },
+                                        { label: "APR reduction", value: cfg.aprReduction > 0 ? `−${cfg.aprReduction.toFixed(1)}%` : "none", color: cfg.aprReduction > 0 ? t.green : t.red },
+                                        { label: "Payment change", value: (cfg.paymentDelta > 0 ? "+" : "") + fmtMoneyExact(cfg.paymentDelta) + "/mo", color: cfg.paymentDelta > 100 ? t.red : cfg.paymentDelta < -100 ? t.amber : t.muted },
+                                    ].map((s, j) => (
+                                        <div key={j} style={{ background: t.bg2, borderRadius: 8, padding: "8px 10px", border: `1px solid ${t.border}` }}>
+                                            <div style={{ fontSize: 10, color: t.subtle, textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>{s.label}</div>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: s.color || t.bright }}>{s.value}</div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Warnings */}
+                                {cfg.warnings.map((w, j) => (
+                                    <div key={j} style={{ fontSize: 12, color: t.amber, marginBottom: 4, lineHeight: 1.6 }}>⚠ {w}</div>
+                                ))}
+
+                                {/* Disqualifiers */}
+                                {cfg.disqualifiers.map((d, j) => (
+                                    <div key={j} style={{ fontSize: 12, color: t.red, marginBottom: 4, lineHeight: 1.6 }}>✗ {d}</div>
+                                ))}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* What to do after */}
+            {hasAnyGood && topRecommended && (
+                <div style={{ border: `1px solid ${t.border}`, background: t.bg1, borderRadius: 12, padding: 14 }}>
+                    <SectionLabel text="Next Steps" />
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: t.body, lineHeight: 1.8 }}>
+                        <div>1. Accept the loan and pay off: <strong style={{ color: t.bright }}>{topRecommended.subset.map(d => d.name).join(", ")}</strong></div>
+                        <div>2. Remove the paid-off cards from the Debts tab and add the consolidation loan</div>
+                        <div>3. <strong style={{ color: t.red }}>Freeze or close the consolidated cards</strong> — do not reuse them</div>
+                        <div>4. Set the new loan's monthly payment to <strong style={{ color: t.bright }}>{fmtMoneyExact(topRecommended.loanPayment)}</strong> in the Debts tab</div>
+                        <div>5. Use the Consolidation Loan tab to verify the numbers match your actual offer</div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 const SCENARIO_TABS = [
     { id: "extra", label: "Extra Payment" },
     { id: "lump", label: "Lump Sum" },
+    { id: "recommender", label: "Loan Recommender" },
     { id: "consolidation", label: "Consolidation Loan" },
     { id: "purchase", label: "Purchase Cost" },
 ];
@@ -1020,7 +1378,9 @@ export default function Scenarios({ state }) {
     const nowMonth = useMemo(() => startOfMonth(new Date()), []);
 
     const { debts, extraPool, strategy, baseTrajectory } = useMemo(() => {
-        const debts = buildBaseDebts(state);
+        // Use shared canonical ranking so Scenarios baseline matches AttackMap
+        const rawDebts = buildBaseDebts(state);
+        const debts = rankDebtsCanonical(rawDebts);
         const extraPool = extraPoolFromDebts(debts);
         const strategy = chooseStrategy(debts, nowMonth);
         const baseTrajectory = buildTrajectory(debts, extraPool, strategy, nowMonth);
@@ -1078,6 +1438,13 @@ export default function Scenarios({ state }) {
                 <ScenarioLumpSum
                     debts={debts}
                     baseTrajectory={baseTrajectory}
+                    extraPool={extraPool}
+                    strategy={strategy}
+                    nowMonth={nowMonth}
+                />
+            ) : activeScenario === "recommender" ? (
+                <ScenarioConsolidationRecommender
+                    debts={debts}
                     extraPool={extraPool}
                     strategy={strategy}
                     nowMonth={nowMonth}

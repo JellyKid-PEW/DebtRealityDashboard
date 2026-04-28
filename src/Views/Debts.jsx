@@ -66,6 +66,14 @@ function fmtMoney(n) {
     }).format(Number(n) || 0);
 }
 
+function monthsAway(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d)) return null;
+    const now = new Date();
+    return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
+}
+
 function fmtPct(n) {
     return `${(Number(n) || 0).toFixed(1)}%`;
 }
@@ -244,7 +252,7 @@ function Btn({ children, onClick, variant = "ghost", type = "button" }) {
     );
 }
 
-function Field({ label, children }) {
+function Field({ label, children, help }) {
     return (
         <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <span
@@ -259,8 +267,14 @@ function Field({ label, children }) {
                 {label}
             </span>
             {children}
+            {help && (
+                <span style={{ fontFamily: mono, fontSize: 10, color: t.subtle, lineHeight: 1.5 }}>
+                    {help}
+                </span>
+            )}
         </label>
     );
+}
 }
 
 function TextInput({ value, onChange, placeholder = "" }) {
@@ -383,7 +397,7 @@ function DragHandle() {
                 padding: "2px 6px",
             }}
         >
-            ⋮⋮
+            â®â®
         </div>
     );
 }
@@ -403,7 +417,7 @@ function CardFormFields({ draft, setDraft }) {
             <Field label="Card Name">
                 <TextInput value={draft.name} onChange={f("name")} placeholder="e.g. Chase Freedom" />
             </Field>
-            <Field label="Due Day (1–31)">
+            <Field label="Due Day (1â31)">
                 <NumberInput value={draft.dueDay} onChange={f("dueDay")} min={1} />
             </Field>
             <Field label="Balance ($)">
@@ -418,16 +432,16 @@ function CardFormFields({ draft, setDraft }) {
             <Field label="Min Payment ($/mo)">
                 <NumberInput value={draft.minPayment} onChange={f("minPayment")} />
             </Field>
-            <Field label="Avg Monthly Spend ($)">
+            <Field label="Avg Monthly Spend ($)" help="New charges you put on this card each month. If you're actively using it, enter your typical spend — this affects the payoff simulation.">
                 <NumberInput value={draft.monthlySpend} onChange={f("monthlySpend")} />
             </Field>
             <Field label="Avg Monthly Payment ($)">
                 <NumberInput value={draft.monthlyPayment} onChange={f("monthlyPayment")} />
             </Field>
-            <Field label="Promo APR (%) — optional">
+            <Field label="Promo APR (%) â optional">
                 <NumberInput value={draft.promoApr} onChange={f("promoApr")} placeholder="e.g. 0" />
             </Field>
-            <Field label="Promo End Date — optional">
+            <Field label="Promo End Date â optional">
                 <TextInput value={draft.promoEnd} onChange={f("promoEnd")} placeholder="YYYY-MM-DD" />
             </Field>
         </div>
@@ -449,7 +463,7 @@ function LoanFormFields({ draft, setDraft }) {
             <Field label="Loan Name">
                 <TextInput value={draft.name} onChange={f("name")} placeholder="e.g. Toyota Loan" />
             </Field>
-            <Field label="Due Day (1–31)">
+            <Field label="Due Day (1â31)">
                 <NumberInput value={draft.dueDay} onChange={f("dueDay")} min={1} />
             </Field>
             <Field label="Type">
@@ -464,10 +478,10 @@ function LoanFormFields({ draft, setDraft }) {
             <Field label="Monthly Payment ($)">
                 <NumberInput value={draft.monthlyPayment} onChange={f("monthlyPayment")} />
             </Field>
-            <Field label="Months Remaining — optional">
+            <Field label="Months Remaining" help="Months left on this loan. The simulation uses this to calculate exact payoff.">
                 <NumberInput value={draft.termRemainingMonths} onChange={f("termRemainingMonths")} min={0} />
             </Field>
-            <Field label="Extra Payment ($/mo) — optional">
+            <Field label="Extra Payment ($/mo)" help="Extra amount above the minimum you pay each month.">
                 <NumberInput value={draft.extraPayment} onChange={f("extraPayment")} min={0} />
             </Field>
         </div>
@@ -564,7 +578,7 @@ function AddLoanRow({ onSave, onCancel, nextOrder }) {
     );
 }
 
-function CardRow({ card, onSave, onDelete, draggableProps }) {
+function CardRow({ card, onSave, onDelete, draggableProps, prevDebts }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(card);
 
@@ -576,14 +590,29 @@ function CardRow({ card, onSave, onDelete, draggableProps }) {
                 : "flat";
 
     const trendMeta = {
-        up: { symbol: "↑", color: t.red, label: "spending > paying" },
-        down: { symbol: "↓", color: t.green, label: "paying > spending" },
-        flat: { symbol: "→", color: t.subtle, label: "balanced" },
+        up: { symbol: "â", color: t.red, label: "spending > paying" },
+        down: { symbol: "â", color: t.green, label: "paying > spending" },
+        flat: { symbol: "â", color: t.subtle, label: "balanced" },
     }[trend];
 
     const utilPct = card.limit > 0 ? (card.balance / card.limit) * 100 : null;
     const utilColor =
         utilPct == null ? t.muted : utilPct > 70 ? t.red : utilPct > 50 ? t.amber : t.green;
+
+    // Balance trend vs last import
+    const prevBalance = prevDebts ? prevDebts.find(d => d.id === card.id)?.balance : null;
+    const balanceDelta = prevBalance != null ? card.balance - prevBalance : null;
+    const balanceTrend = balanceDelta == null ? null : Math.abs(balanceDelta) < 1 ? "flat" : balanceDelta < 0 ? "down" : "up";
+
+    // Promo countdown
+    const promoMonths = monthsAway(card.promoEnd || card.promoEndDate || card.promoExpiration);
+    const promoUrgent = promoMonths !== null && promoMonths <= 6 && promoMonths >= 0;
+    const promoCritical = promoMonths !== null && promoMonths <= 2 && promoMonths >= 0;
+
+    // Negative amortization check
+    const effectiveApr = Number(card.promoApr) > 0 ? Number(card.promoApr) : Number(card.apr) || 0;
+    const monthlyInterest = (Number(card.balance) || 0) * effectiveApr / 100 / 12;
+    const isNegAmort = (Number(card.monthlyPayment) || 0) + (Number(card.monthlySpend) || 0) <= monthlyInterest && monthlyInterest > 0;
 
     function handleSave() {
         if (!draft.name.trim()) return;
@@ -621,18 +650,42 @@ function CardRow({ card, onSave, onDelete, draggableProps }) {
             >
                 <DragHandle />
 
-                <span
-                    style={{
-                        fontFamily: mono,
-                        fontSize: 13,
-                        fontWeight: 700,
-                        color: t.bright,
-                        minWidth: 120,
-                        flex: "1 1 120px",
-                    }}
-                >
-                    {card.name || <span style={{ color: t.muted, fontWeight: 400 }}>Unnamed Card</span>}
-                </span>
+                <div style={{ flex: "1 1 120px", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: mono, fontSize: 13, fontWeight: 700, color: t.bright }}>
+                        {card.name || <span style={{ color: t.muted, fontWeight: 400 }}>Unnamed Card</span>}
+                    </span>
+                    {/* Promo countdown badge */}
+                    {promoUrgent && (
+                        <span style={{
+                            fontFamily: mono, fontSize: 10, fontWeight: 700,
+                            padding: "2px 6px", borderRadius: 4, letterSpacing: "0.06em",
+                            background: promoCritical ? t.redBg : t.amberBg,
+                            color: promoCritical ? t.red : t.amber,
+                            border: `1px solid ${promoCritical ? t.redD : t.amberD}`,
+                        }}>
+                            {promoCritical ? "⚠ PROMO ENDS " : "promo ends "}{promoMonths === 0 ? "this month" : `in ${promoMonths}mo`}
+                        </span>
+                    )}
+                    {/* Negative amortization warning */}
+                    {isNegAmort && (
+                        <span style={{
+                            fontFamily: mono, fontSize: 10, fontWeight: 700,
+                            padding: "2px 6px", borderRadius: 4,
+                            background: t.redBg, color: t.red, border: `1px solid ${t.redD}`,
+                        }}>
+                            ⚠ GROWING
+                        </span>
+                    )}
+                    {/* Balance trend vs last import */}
+                    {balanceTrend && balanceTrend !== "flat" && (
+                        <span style={{
+                            fontFamily: mono, fontSize: 11, fontWeight: 600,
+                            color: balanceTrend === "down" ? t.green : t.red,
+                        }}>
+                            {balanceTrend === "down" ? "↓ " : "↑ "}{fmtMoney(Math.abs(balanceDelta))}
+                        </span>
+                    )}
+                </div>
 
                 {card.groupName ? (
                     <span
@@ -791,9 +844,118 @@ function LoanRow({ loan, onSave, onDelete, draggableProps }) {
     );
 }
 
+
+// ─── QUICK BALANCE UPDATE ─────────────────────────────────────────────────────
+// Shows all debts as inline editable balances — one screen, one save
+function QuickBalanceUpdate({ cards, loans, onSaveCards, onSaveLoans, onClose }) {
+    const [cardBalances, setCardBalances] = useState(
+        Object.fromEntries(cards.map(c => [c.id, c.balance]))
+    );
+    const [loanBalances, setLoanBalances] = useState(
+        Object.fromEntries(loans.map(l => [l.id, l.balance]))
+    );
+
+    function handleSave() {
+        onSaveCards(cards.map(c => ({ ...c, balance: Number(cardBalances[c.id]) || 0 })));
+        onSaveLoans(loans.map(l => ({ ...l, balance: Number(loanBalances[l.id]) || 0 })));
+        onClose();
+    }
+
+    const rowStyle = {
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "10px 0",
+        borderBottom: `1px solid ${t.border}`,
+    };
+    const nameStyle = { flex: 1, fontFamily: mono, fontSize: 13, color: t.bright };
+    const inputStyle = {
+        width: 130, fontFamily: mono, fontSize: 14, fontWeight: 700,
+        background: t.bg2, border: `1px solid ${t.borderHi}`,
+        borderRadius: 6, color: t.bright, padding: "7px 10px",
+        outline: "none", textAlign: "right",
+    };
+
+    return (
+        <div style={{ border: `2px solid ${t.amber}`, background: t.bg1, borderRadius: 12, padding: 20, marginBottom: 20 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <div>
+                    <div style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, color: t.amber, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 3 }}>
+                        Quick Balance Update
+                    </div>
+                    <div style={{ fontFamily: mono, fontSize: 11, color: t.muted }}>
+                        Update all balances at once, then save.
+                    </div>
+                </div>
+                <button onClick={onClose} style={{ fontFamily: mono, fontSize: 11, color: t.subtle, background: "transparent", border: "none", cursor: "pointer" }}>
+                    Cancel
+                </button>
+            </div>
+
+            {cards.length > 0 && (
+                <>
+                    <div style={{ fontFamily: mono, fontSize: 10, color: t.subtle, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8 }}>Credit Cards</div>
+                    {cards.map(card => (
+                        <div key={card.id} style={rowStyle}>
+                            <span style={nameStyle}>{card.name || "Card"}</span>
+                            <span style={{ fontFamily: mono, fontSize: 11, color: t.muted, flexShrink: 0 }}>
+                                was {fmtMoney(card.balance)}
+                            </span>
+                            <input
+                                type="number"
+                                value={cardBalances[card.id] ?? ""}
+                                onChange={e => setCardBalances(b => ({ ...b, [card.id]: e.target.value }))}
+                                style={inputStyle}
+                            />
+                        </div>
+                    ))}
+                </>
+            )}
+
+            {loans.length > 0 && (
+                <>
+                    <div style={{ fontFamily: mono, fontSize: 10, color: t.subtle, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 8, marginTop: cards.length ? 16 : 0 }}>Loans</div>
+                    {loans.map(loan => (
+                        <div key={loan.id} style={rowStyle}>
+                            <span style={nameStyle}>{loan.name || "Loan"}</span>
+                            <span style={{ fontFamily: mono, fontSize: 11, color: t.muted, flexShrink: 0 }}>
+                                was {fmtMoney(loan.balance)}
+                            </span>
+                            <input
+                                type="number"
+                                value={loanBalances[loan.id] ?? ""}
+                                onChange={e => setLoanBalances(b => ({ ...b, [loan.id]: e.target.value }))}
+                                style={inputStyle}
+                            />
+                        </div>
+                    ))}
+                </>
+            )}
+
+            <div style={{ marginTop: 16, display: "flex", gap: 10 }}>
+                <button onClick={handleSave} style={{
+                    fontFamily: mono, fontSize: 12, fontWeight: 700,
+                    background: t.amber, color: "#0f172a",
+                    border: "none", borderRadius: 7, padding: "9px 20px", cursor: "pointer",
+                }}>
+                    Save All Balances
+                </button>
+                <button onClick={onClose} style={{
+                    fontFamily: mono, fontSize: 12, color: t.muted,
+                    background: "transparent", border: `1px solid ${t.border}`, borderRadius: 7,
+                    padding: "9px 14px", cursor: "pointer",
+                }}>
+                    Cancel
+                </button>
+            </div>
+        </div>
+    );
+}
+
 export default function Debts({ state, onUpdate }) {
+    // Extract previous snapshot debt balances for trend display
+    const prevDebts = state.prevSnapshot?.debts || state.lastSnapshot?.debts || null;
     const [addingCard, setAddingCard] = useState(false);
     const [addingLoan, setAddingLoan] = useState(false);
+    const [quickUpdate, setQuickUpdate] = useState(false);
 
     const cards = useMemo(() => sortByOrder(state.creditCards ?? []), [state.creditCards]);
     const loans = useMemo(() => sortByOrder(state.loans ?? []), [state.loans]);
@@ -820,6 +982,9 @@ export default function Debts({ state, onUpdate }) {
         setAddingCard(false);
     };
 
+    const handleQuickSaveCards = (updatedCards) => updateCards(updatedCards);
+    const handleQuickSaveLoans = (updatedLoans) => updateLoans(updatedLoans);
+
     const handleSaveCard = (card) => {
         updateCards(cards.map((c) => (c.id === card.id ? card : c)));
     };
@@ -843,7 +1008,35 @@ export default function Debts({ state, onUpdate }) {
 
     return (
         <div style={{ display: "flex", flexDirection: "column", gap: 32, maxWidth: 980, margin: "0 auto", padding: "0 0 48px" }}>
-            <TotalsStrip cards={cards} loans={loans} />
+
+            {/* Quick balance update — one screen, all balances */}
+            {quickUpdate && (
+                <QuickBalanceUpdate
+                    cards={cards}
+                    loans={loans}
+                    onSaveCards={handleQuickSaveCards}
+                    onSaveLoans={handleQuickSaveLoans}
+                    onClose={() => setQuickUpdate(false)}
+                />
+            )}
+
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <TotalsStrip cards={cards} loans={loans} />
+                {(cards.length > 0 || loans.length > 0) && !quickUpdate && (
+                    <button
+                        onClick={() => { setQuickUpdate(true); setAddingCard(false); setAddingLoan(false); }}
+                        style={{
+                            fontFamily: mono, fontSize: 11, fontWeight: 700,
+                            background: "transparent", color: t.amber,
+                            border: `1px solid ${t.amber}`, borderRadius: 6,
+                            padding: "6px 14px", cursor: "pointer", letterSpacing: "0.06em",
+                            flexShrink: 0,
+                        }}
+                    >
+                        ⚡ Quick Update
+                    </button>
+                )}
+            </div>
 
             <section>
                 <SectionHeader
@@ -851,6 +1044,7 @@ export default function Debts({ state, onUpdate }) {
                     onAdd={() => {
                         setAddingCard(true);
                         setAddingLoan(false);
+                        setQuickUpdate(false);
                     }}
                     addLabel="+ Add Card"
                 />
@@ -882,6 +1076,7 @@ export default function Debts({ state, onUpdate }) {
                             card={card}
                             onSave={handleSaveCard}
                             onDelete={handleDeleteCard}
+                            prevDebts={prevDebts}
                             draggableProps={{
                                 onDragStart: () => setDraggingCardId(card.id),
                                 onDragOver: (e) => e.preventDefault(),
@@ -922,7 +1117,7 @@ export default function Debts({ state, onUpdate }) {
                                 <>
                                     No loans added yet.
                                     <br />
-                                    Car loans, mortgages, personal loans — track them all here.
+                                    Car loans, mortgages, personal loans â track them all here.
                                 </>
                             }
                         />

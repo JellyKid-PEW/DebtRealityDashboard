@@ -26,6 +26,12 @@ const DEFAULT_STATE = {
     paycheckMins: 0,
     paycheckEssentials: 0,
     cardLockouts: {},
+    planStartDate: null,      // ISO date string — when the plan was first committed
+    lastSnapshot: null,       // { date, totalDebt, debts: [{id,name,balance}] }
+    prevSnapshot: null,       // snapshot from the import before lastSnapshot — for delta display
+    commitment: null,         // { date, planMonth, focusDebt, focusId, projectedBalances, totalProjected }
+    commitHistory: [],        // [{ commitDate, verifyDate, focusDebt, overall, totalDelta, debtResults, daysSince }]
+    lastImportedAt: null,     // ISO string — when data was last imported
 };
 
 function loadState() {
@@ -50,17 +56,38 @@ function exportJSON(state) {
     URL.revokeObjectURL(url);
 }
 
-function importJSON(file, onSuccess, onError) {
+function importJSON(file, currentState, onSuccess, onError) {
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
             const parsed = JSON.parse(e.target.result);
+            // Preserve persisted UI fields that live in state but aren't in the data export
+            const persisted = {
+                savingsBalance: parsed.savingsBalance ?? currentState.savingsBalance ?? 0,
+                emergencyTarget: parsed.emergencyTarget ?? currentState.emergencyTarget ?? 2500,
+                upcomingBills: parsed.upcomingBills ?? currentState.upcomingBills ?? 0,
+                upcomingMins: parsed.upcomingMins ?? currentState.upcomingMins ?? 0,
+                essentialCash: parsed.essentialCash ?? currentState.essentialCash ?? 0,
+                paycheckAmount: parsed.paycheckAmount ?? currentState.paycheckAmount ?? 0,
+                paycheckBills: parsed.paycheckBills ?? currentState.paycheckBills ?? 0,
+                paycheckMins: parsed.paycheckMins ?? currentState.paycheckMins ?? 0,
+                paycheckEssentials: parsed.paycheckEssentials ?? currentState.paycheckEssentials ?? 0,
+                cardLockouts: parsed.cardLockouts ?? currentState.cardLockouts ?? {},
+                planStartDate: parsed.planStartDate ?? currentState.planStartDate ?? null,
+                lastSnapshot: parsed.lastSnapshot ?? currentState.lastSnapshot ?? null,
+                prevSnapshot: parsed.prevSnapshot ?? currentState.prevSnapshot ?? null,
+                commitment: parsed.commitment ?? currentState.commitment ?? null,
+                commitHistory: Array.isArray(parsed.commitHistory) ? parsed.commitHistory : (currentState.commitHistory ?? []),
+                lastImportedAt: now,
+            };
+
             onSuccess({
                 incomes: Array.isArray(parsed.incomes) ? parsed.incomes : [],
                 creditCards: Array.isArray(parsed.creditCards) ? parsed.creditCards : [],
                 loans: Array.isArray(parsed.loans) ? parsed.loans : [],
                 expenses: Array.isArray(parsed.expenses) ? parsed.expenses : [],
                 assets: Array.isArray(parsed.assets) ? parsed.assets : [],
+                ...persisted,
             });
         } catch {
             onError("Invalid JSON file.");
@@ -82,151 +109,9 @@ function importSummary(state) {
 
 // ─── INCOME VIEW ──────────────────────────────────────────────────────────────
 
-function IncomeView({ state, onUpdate }) {
-    const incomes = state.incomes ?? [];
-
-    const [draft, setDraft] = useState({
-        id: "",
-        name: "",
-        owner: "Joint",
-        amount: 0,
-        frequency: "monthly",
-        isNet: true,
-    });
-
-    function addIncome() {
-        if (!draft.name.trim()) return;
-        onUpdate({
-            ...state,
-            incomes: [...incomes, { ...draft, id: crypto.randomUUID() }],
-        });
-        setDraft({ id: "", name: "", owner: "Joint", amount: 0, frequency: "monthly", isNet: true });
-    }
-
-    function removeIncome(id) {
-        onUpdate({ ...state, incomes: incomes.filter((x) => x.id !== id) });
-    }
-
-    const total = incomes.reduce(
-        (sum, i) => sum + normalizeToMonthly(i.amount, i.frequency),
-        0
-    );
-
-    const inputStyle = {
-        minHeight: 44,
-        borderRadius: 9,
-        border: "1px solid #334155",
-        background: "#111827",
-        color: "#e2e8f0",
-        padding: "10px 12px",
-        fontSize: 15,
-        outline: "none",
-    };
-
-    return (
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 0 48px", color: "#e2e8f0" }}>
-            <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: 16 }}>
-                Income
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginBottom: 14 }}>
-                <input
-                    placeholder="Income source"
-                    value={draft.name}
-                    onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-                    style={inputStyle}
-                />
-                <select
-                    value={draft.owner}
-                    onChange={(e) => setDraft({ ...draft, owner: e.target.value })}
-                    style={inputStyle}
-                >
-                    <option value="A">Person A</option>
-                    <option value="B">Person B</option>
-                    <option value="Joint">Joint</option>
-                </select>
-                <input
-                    type="number"
-                    placeholder="Amount"
-                    value={draft.amount || ""}
-                    onChange={(e) => setDraft({ ...draft, amount: parseFloat(e.target.value) || 0 })}
-                    style={inputStyle}
-                />
-                <select
-                    value={draft.frequency}
-                    onChange={(e) => setDraft({ ...draft, frequency: e.target.value })}
-                    style={inputStyle}
-                >
-                    <option value="weekly">Weekly</option>
-                    <option value="biweekly">Biweekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="annual">Annual</option>
-                </select>
-                <button
-                    onClick={addIncome}
-                    style={{
-                        minHeight: 44,
-                        borderRadius: 9,
-                        border: "1px solid #334155",
-                        background: "#0f172a",
-                        color: "#e2e8f0",
-                        fontSize: 14,
-                        cursor: "pointer",
-                    }}
-                >
-                    Add
-                </button>
-            </div>
-
-            <div style={{ fontSize: 13, color: "#94a3b8", marginBottom: 16 }}>
-                Combined monthly income:{" "}
-                <strong style={{ color: "#e2e8f0" }}>${total.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong>
-            </div>
-
-            <div style={{ display: "grid", gap: 8 }}>
-                {incomes.map((income) => (
-                    <div
-                        key={income.id}
-                        style={{
-                            border: "1px solid #334155",
-                            borderRadius: 10,
-                            padding: "12px 14px",
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            background: "#0f172a",
-                        }}
-                    >
-                        <div>
-                            <div style={{ fontSize: 14, fontWeight: 500 }}>{income.name}</div>
-                            <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 2 }}>
-                                {income.owner} · {income.frequency} · ${income.amount}
-                            </div>
-                        </div>
-                        <button
-                            onClick={() => removeIncome(income.id)}
-                            style={{
-                                border: "1px solid #334155",
-                                borderRadius: 7,
-                                background: "transparent",
-                                color: "#64748b",
-                                fontSize: 12,
-                                padding: "4px 10px",
-                                cursor: "pointer",
-                            }}
-                        >
-                            Remove
-                        </button>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
-
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 
-const TABS = ["Attack Map", "Plan", "Debts", "Expenses", "Income", "Assets", "Scenarios", "Summary"];
+const TABS = ["Attack Map", "Trajectory", "Debts", "Expenses", "Assets", "Scenarios", "Summary"];
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
 
@@ -262,8 +147,63 @@ export default function App() {
         if (!file) return;
         importJSON(
             file,
+            state,
             (newState) => {
-                setState(newState);
+                const now = new Date().toISOString();
+                const totalDebt = [
+                    ...(newState.creditCards ?? []),
+                    ...(newState.loans ?? []),
+                ].reduce((s, d) => s + (Number(d.balance) || 0), 0);
+
+                // Build snapshot of current balances for future comparison
+                const snapshot = {
+                    date: now,
+                    totalDebt,
+                    debts: [
+                        ...(newState.creditCards ?? []).map(c => ({ id: c.id, name: c.name, balance: Number(c.balance) || 0 })),
+                        ...(newState.loans ?? []).map(l => ({ id: l.id, name: l.name, balance: Number(l.balance) || 0 })),
+                    ],
+                };
+
+                // If there's an active commitment and a previous snapshot, archive the verification
+                let archivedHistory = state.commitHistory ?? [];
+                if (state.commitment && state.lastSnapshot) {
+                    // Build a lightweight verification record to store in history
+                    const prevTotal = state.lastSnapshot.totalDebt || 0;
+                    const actualTotal = [
+                        ...(newState.creditCards ?? []),
+                        ...(newState.loans ?? []),
+                    ].reduce((s, d) => s + (Number(d.balance) || 0), 0);
+                    const totalDelta = state.commitment.totalProjected - actualTotal;
+                    const daysSince = Math.round((new Date(now) - new Date(state.commitment.date)) / 86400000);
+                    const overall = Math.abs(totalDelta) < 10 ? 'on-track' : totalDelta > 0 ? 'ahead' : 'behind';
+                    archivedHistory = [
+                        {
+                            commitDate: state.commitment.date,
+                            verifyDate: now,
+                            focusDebt: state.commitment.focusDebt,
+                            planMonth: state.commitment.planMonth,
+                            overall,
+                            totalDelta,
+                            projectedTotal: state.commitment.totalProjected,
+                            actualTotal,
+                            daysSince,
+                        },
+                        ...archivedHistory,
+                    ].slice(0, 24); // keep last 24 entries
+                }
+
+                const withMeta = {
+                    ...newState,
+                    lastSnapshot: snapshot,
+                    planStartDate: newState.planStartDate || now,
+                    prevSnapshot: state.lastSnapshot || null,
+                    commitHistory: archivedHistory,
+                    commitment: null,
+                    lastImportedAt: now,
+                };
+
+                setState(withMeta);
                 setImportMsg(importSummary(newState));
                 setTimeout(() => setImportMsg(null), 4000);
                 setTab("Attack Map");
@@ -275,11 +215,10 @@ export default function App() {
 
     function renderTab() {
         switch (tab) {
-            case "Attack Map": return <AttackMap state={state} onUpdate={setState} />;
-            case "Plan": return <Plan state={state} />;
+            case "Attack Map": return <AttackMap state={state} onUpdate={setState} setTab={setTab} />;
+            case "Trajectory": return <Plan state={state} />;
             case "Debts": return <Debts state={state} onUpdate={setState} />;
             case "Expenses": return <Expenses state={state} onUpdate={setState} />;
-            case "Income": return <IncomeView state={state} onUpdate={setState} />;
             case "Assets": return <Assets state={state} onUpdate={setState} />;
             case "Scenarios": return <Scenarios state={state} />;
             case "Summary": return <SummaryView state={state} />;
@@ -300,6 +239,11 @@ export default function App() {
                         Total debt: <span style={{ color: "#94a3b8" }}>${calc.totalDebt.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                         &nbsp;·&nbsp;
                         Monthly income: <span style={{ color: "#94a3b8" }}>${calc.monthlyIncome.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        {state.lastImportedAt && (
+                            <span style={{ color: "#475569", marginLeft: 8 }}>
+                                · data as of {new Date(state.lastImportedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -375,36 +319,48 @@ export default function App() {
                     </button>
                 </div>
 
-                {/* Tab bar */}
+                {/* Tab bar — horizontal scroll on mobile, auto-fit on desktop */}
                 <div
                     style={{
-                        display: "grid",
-                        gridTemplateColumns: isMobile ? "1fr 1fr" : `repeat(${TABS.length}, auto)`,
+                        display: "flex",
                         gap: 6,
                         marginBottom: 24,
+                        overflowX: isMobile ? "auto" : "visible",
+                        WebkitOverflowScrolling: "touch",
+                        scrollbarWidth: "none",
+                        msOverflowStyle: "none",
+                        paddingBottom: isMobile ? 4 : 0,
                     }}
                 >
-                    {TABS.map((t) => (
-                        <button
-                            key={t}
-                            onClick={() => setTab(t)}
-                            style={{
-                                padding: isMobile ? "11px 8px" : "9px 14px",
-                                minHeight: 42,
-                                borderRadius: 8,
-                                border: tab === t ? "1px solid #f59e0b" : "1px solid #1e293b",
-                                background: tab === t ? "#1a1200" : "transparent",
-                                color: tab === t ? "#f59e0b" : "#475569",
-                                cursor: "pointer",
-                                fontSize: 13,
-                                fontWeight: tab === t ? 700 : 400,
-                                letterSpacing: tab === t ? "0.01em" : "normal",
-                                transition: "all 0.15s",
-                            }}
-                        >
-                            {t}
-                        </button>
-                    ))}
+                    {TABS.map((t) => {
+                        const isPrimary = t === "Attack Map" || t === "Trajectory";
+                        const isActive = tab === t;
+                        return (
+                            <button
+                                key={t}
+                                onClick={() => setTab(t)}
+                                style={{
+                                    padding: isMobile
+                                        ? isPrimary ? "11px 16px" : "11px 12px"
+                                        : "9px 14px",
+                                    minHeight: 42,
+                                    flexShrink: 0,
+                                    borderRadius: 8,
+                                    border: isActive ? "1px solid #f59e0b" : "1px solid #1e293b",
+                                    background: isActive ? "#1a1200" : "transparent",
+                                    color: isActive ? "#f59e0b" : isPrimary ? "#94a3b8" : "#475569",
+                                    cursor: "pointer",
+                                    fontSize: isMobile ? (isPrimary ? 14 : 13) : 13,
+                                    fontWeight: isActive ? 700 : isPrimary ? 500 : 400,
+                                    letterSpacing: isActive ? "0.01em" : "normal",
+                                    transition: "all 0.15s",
+                                    whiteSpace: "nowrap",
+                                }}
+                            >
+                                {t}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {renderTab()}
