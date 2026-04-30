@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import { calcAll } from "../calculations.js";
+import { normalizeToMonthly, normalizeDebtsForRanking, rankDebtsCanonical } from "../calculations.js";
 
-// ─── STYLE TOKENS ─────────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ STYLE TOKENS Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 const mono = "'IBM Plex Mono', 'Courier New', monospace";
 const display = "'Georgia', 'Times New Roman', serif";
 
@@ -16,14 +16,14 @@ const t = {
 };
 
 function fmtMoney(n) {
-  if (!isFinite(n ?? Infinity)) return "—";
+  if (!isFinite(n ?? Infinity)) return "Ã¢ÂÂ";
   return new Intl.NumberFormat("en-US", {
     style: "currency", currency: "USD",
     minimumFractionDigits: 0, maximumFractionDigits: 0,
   }).format(Math.abs(n ?? 0));
 }
 
-// ─── BIG NUMBER CARD ──────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ BIG NUMBER CARD Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function BigStat({ label, value, valueColor, sub, icon }) {
   return (
@@ -60,7 +60,7 @@ function BigStat({ label, value, valueColor, sub, icon }) {
   );
 }
 
-// ─── DIRECTION BANNER ─────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ DIRECTION BANNER Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 const BANNER = {
   increasing: {
@@ -177,7 +177,7 @@ function DirectionBanner({ direction, amount, cardSpend, cardPayments }) {
   );
 }
 
-// ─── IMPROVEMENT TIP ──────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ IMPROVEMENT TIP Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function ImprovementTip({ direction, netAmount, cardSpend }) {
   const isIncreasing = direction === "increasing";
@@ -187,7 +187,7 @@ function ImprovementTip({ direction, netAmount, cardSpend }) {
     ? `Reducing card spending by ${fmtMoney(Math.max(halfAmount, 50))}/month would cut the increase roughly in half.`
     : `You're on the right track. Staying consistent matters more than any single big move.`;
 
-  const icon  = isIncreasing ? "💡" : "✓";
+  const icon  = isIncreasing ? "Ã°ÂÂÂ¡" : "Ã¢ÂÂ";
   const color = isIncreasing ? t.amber : t.green;
   const bg    = isIncreasing ? "#f59e0b0d" : "#22c55e0d";
   const brd   = isIncreasing ? "#92400e" : "#166534";
@@ -224,16 +224,16 @@ function ImprovementTip({ direction, netAmount, cardSpend }) {
   );
 }
 
-// ─── BREATHING ROOM VISUAL ────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ BREATHING ROOM VISUAL Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
   const pct = monthlyIncome > 0 ? Math.max(0, Math.min(100, (cashFlow / monthlyIncome) * 100)) : 0;
   const isNegative = cashFlow < 0;
   const color = isNegative ? t.red : cashFlow < 300 ? t.amber : t.green;
   const label = isNegative
-    ? "Things are tight — spending exceeds income"
+    ? "Things are tight Ã¢ÂÂ spending exceeds income"
     : cashFlow < 300
-    ? "Not much buffer — watch discretionary spending"
+    ? "Not much buffer Ã¢ÂÂ watch discretionary spending"
     : "Good breathing room";
 
   return (
@@ -242,7 +242,7 @@ function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
       borderRadius: 12, padding: "24px 28px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 18 }}>🌬️</span>
+        <span style={{ fontSize: 18 }}>Ã°ÂÂÂ¬Ã¯Â¸Â</span>
         <span style={{
           fontFamily: mono, fontSize: 11, color: t.subtle,
           letterSpacing: "0.14em", textTransform: "uppercase",
@@ -255,7 +255,7 @@ function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
         fontWeight: 700, color,
         lineHeight: 1.1, marginBottom: 12,
       }}>
-        {isNegative ? `−${fmtMoney(Math.abs(cashFlow))}` : fmtMoney(cashFlow)}
+        {isNegative ? `Ã¢ÂÂ${fmtMoney(Math.abs(cashFlow))}` : fmtMoney(cashFlow)}
       </div>
 
       {/* Gauge bar */}
@@ -289,7 +289,7 @@ function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
   );
 }
 
-// ─── EMPTY STATE ──────────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ EMPTY STATE Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function EmptySummaryView() {
   return (
@@ -298,7 +298,7 @@ function EmptySummaryView() {
       justifyContent: "center", minHeight: 400, gap: 20, textAlign: "center",
       padding: "48px 24px",
     }}>
-      <span style={{ fontSize: 48 }}>🏠</span>
+      <span style={{ fontSize: 48 }}>Ã°ÂÂÂ </span>
       <div>
         <p style={{
           fontFamily: display, fontSize: 22, color: t.bright,
@@ -316,10 +316,51 @@ function EmptySummaryView() {
   );
 }
 
-// ─── MAIN EXPORT ──────────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ MAIN EXPORT Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 export default function SummaryView({ state }) {
-  const calc = useMemo(() => calcAll(state), [state]);
+  const calc = useMemo(() => {
+    // Use same data model as AttackMap for consistency
+    const debts = normalizeDebtsForRanking(state.creditCards, state.loans);
+    const ranked = rankDebtsCanonical(debts);
+
+    const monthlyIncome = (state.incomes ?? []).reduce(
+      (s, i) => s + normalizeToMonthly(i.amount, i.frequency), 0
+    );
+    const monthlyExpenses = (state.expenses ?? []).reduce(
+      (s, e) => s + normalizeToMonthly(e.amount, e.frequency), 0
+    );
+    const allMinimums = debts.reduce((s, d) => s + (d.minPayment || 0), 0);
+    const totalCardSpend = debts.filter(d => d._type === "card")
+      .reduce((s, d) => s + (d.monthlySpend || 0), 0);
+    const totalCardPayments = debts.filter(d => d._type === "card")
+      .reduce((s, d) => s + (d.monthlyPayment || 0), 0);
+    const totalDebt = debts.reduce((s, d) => s + d.balance, 0);
+
+    // Cash flow = income - ALL expenses - all minimums
+    const cashFlow = monthlyIncome - monthlyExpenses - allMinimums;
+
+    // Net debt change: do payments exceed interest + new charges?
+    const monthlyInterest = debts.reduce((s, d) => s + d.balance * (d.currentApr / 100) / 12, 0);
+    const netChange = totalCardPayments + allMinimums - totalCardSpend - monthlyInterest;
+    const direction = Math.abs(netChange) < 10 ? "flat" : netChange > 0 ? "decreasing" : "increasing";
+    const amount = Math.abs(netChange);
+
+    // Attack surplus (after essentials only, not all expenses)
+    const essentialExpenses = (state.expenses ?? [])
+      .filter(e => e.essential !== false)
+      .reduce((s, e) => s + normalizeToMonthly(e.amount, e.frequency), 0);
+    const attackSurplus = Math.max(0, monthlyIncome - essentialExpenses - allMinimums);
+
+    // Focus debt
+    const focusDebt = ranked[0] || null;
+
+    return {
+      monthlyIncome, totalDebt, cashFlow, totalCardSpend, totalCardPayments,
+      monthlyInterest, netChange, direction, amount, attackSurplus, focusDebt,
+      debtCount: debts.length,
+    };
+  }, [state]);
 
   const hasData =
     (state.incomes?.length ?? 0) > 0 ||
@@ -329,15 +370,11 @@ export default function SummaryView({ state }) {
   if (!hasData) return <EmptySummaryView />;
 
   const {
-    monthlyIncome,
-    totalDebt,
-    cashFlow,
-    netDebtChange,
-    totalCardSpend,
-    totalCardPayments,
+    monthlyIncome, totalDebt, cashFlow,
+    direction, amount,
+    totalCardSpend, totalCardPayments,
+    monthlyInterest, attackSurplus, focusDebt,
   } = calc;
-
-  const { direction, amount } = netDebtChange;
 
   return (
     <div style={{
@@ -371,10 +408,10 @@ export default function SummaryView({ state }) {
         letterSpacing: "0.16em", textTransform: "uppercase",
         marginBottom: 4,
       }}>
-        Household Summary · Summary View
+        Household Summary ÃÂ· Summary View
       </div>
 
-      {/* ── PRIMARY BANNER ──────────────────────────────── */}
+      {/* Ã¢ÂÂÃ¢ÂÂ PRIMARY BANNER Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
       <DirectionBanner
         direction={direction}
         amount={amount}
@@ -382,42 +419,60 @@ export default function SummaryView({ state }) {
         cardPayments={totalCardPayments}
       />
 
-      {/* ── KEY NUMBERS ─────────────────────────────────── */}
+      {/* Ã¢ÂÂÃ¢ÂÂ KEY NUMBERS Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
       <div className="pv-stats">
         <BigStat
           label="Money coming in"
           value={fmtMoney(monthlyIncome)}
           valueColor={t.green}
           sub="Combined household income each month"
-          icon="💵"
+          icon="Ã°ÂÂÂµ"
         />
         <BigStat
           label="Total debt owed"
           value={fmtMoney(totalDebt)}
           valueColor={t.red}
           sub="All cards and loans combined"
-          icon="📋"
+          icon="Ã°ÂÂÂ"
         />
+        {attackSurplus > 0 && (
+          <BigStat
+            label="Monthly attack surplus"
+            value={fmtMoney(attackSurplus)}
+            valueColor={t.amber}
+            sub="Available above minimums to attack debt each month"
+            icon="ð¯"
+          />
+        )}
+        {focusDebt && (
+          <BigStat
+            label="Focus debt now"
+            value={focusDebt.name}
+            valueColor={t.amber}
+            sub={`${fmtMoney(focusDebt.balance)} at ${focusDebt.currentApr.toFixed(1)}% APR â ${fmtMoney(focusDebt.balance * focusDebt.currentApr / 100 / 12)}/mo interest`}
+            icon="ð¯"
+          />
+        )}
       </div>
 
-      {/* ── BREATHING ROOM ──────────────────────────────── */}
+      {/* Ã¢ÂÂÃ¢ÂÂ BREATHING ROOM Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
       <BreathingRoomGauge cashFlow={cashFlow} monthlyIncome={monthlyIncome} />
 
-      {/* ── IMPROVEMENT TIP ─────────────────────────────── */}
+      {/* Ã¢ÂÂÃ¢ÂÂ IMPROVEMENT TIP Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
       <ImprovementTip
         direction={direction}
         netAmount={amount}
         cardSpend={totalCardSpend}
       />
 
-      {/* ── FOOTER NOTE ─────────────────────────────────── */}
+      {/* Ã¢ÂÂÃ¢ÂÂ FOOTER NOTE Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
       <div style={{
         fontFamily: mono, fontSize: 10, color: t.muted,
         textAlign: "center", lineHeight: 1.7,
         borderTop: `1px solid ${t.border}`, paddingTop: 16, marginTop: 4,
       }}>
         Numbers update automatically as your data changes.
-        This view shows the big picture — no jargon, no tables.
+        This view shows the big picture Ã¢ÂÂ no jargon, no tables.
       </div>
     </div>
   );

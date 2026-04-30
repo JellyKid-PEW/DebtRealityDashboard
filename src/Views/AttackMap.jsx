@@ -815,8 +815,6 @@ function SafePay({safeData,state,onUpdate}) {
                 </button>
                 {showHow&&(
                     <div style={{marginTop:10,padding:"12px 14px",borderRadius:9,background:t.bg2,border:`1px solid ${t.border}`}}>
-                {showHow&&(
-                    <div style={{marginTop:10,padding:"12px 14px",borderRadius:9,background:t.bg2,border:`1px solid ${t.border}`}}>
                         <div style={{fontSize:12,color:t.muted,marginBottom:8,lineHeight:1.6}}>
                             You are paid <strong style={{color:t.bright}}>{freqLabel}</strong>.{" "}
                             {safeData.usingDueDays
@@ -848,6 +846,7 @@ function SafePay({safeData,state,onUpdate}) {
                         </div>
                     </div>
                 )}
+            </div>
         </Card>
     );
 }
@@ -901,7 +900,6 @@ function PaycheckPlan({state,onUpdate,prioritized,lumpSum}) {
 
     const reserved = essShare + minsShare + billsShare;
     const attack = Math.max(0, amt - reserved);
-    const hasAmt = amt > 0;
     const hasAmt = amt > 0;
 
     return (

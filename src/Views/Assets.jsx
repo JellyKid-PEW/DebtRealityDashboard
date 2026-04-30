@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 
-// ─── STYLE TOKENS ─────────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ STYLE TOKENS Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 const mono = "'IBM Plex Mono', 'Courier New', monospace";
 
 const t = {
@@ -29,7 +29,7 @@ function fmtPct(n) {
   return `${(n * 100).toFixed(0)}%`;
 }
 
-// ─── PRIMITIVES ───────────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ PRIMITIVES Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 const inputStyle = {
   fontFamily: mono, fontSize: 12,
@@ -126,7 +126,7 @@ function Expandable({ open, children }) {
   );
 }
 
-// ─── PRIORITY TOGGLE ──────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ PRIORITY TOGGLE Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 const PRIORITIES = ["keep", "maybe", "sell"];
 
@@ -166,7 +166,7 @@ function PriorityBadge({ priority }) {
   );
 }
 
-// ─── ASSET CATEGORIES ─────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ ASSET CATEGORIES Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 const ASSET_CATEGORIES = [
   "Vehicle", "Real Estate", "Investment Account", "Savings",
@@ -174,7 +174,7 @@ const ASSET_CATEGORIES = [
   "Art", "Business", "Other",
 ];
 
-// ─── ASSET FORM FIELDS ────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ ASSET FORM FIELDS Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function AssetFormFields({ draft, setDraft }) {
   const f = (k) => (v) => setDraft(d => ({ ...d, [k]: v }));
@@ -214,7 +214,7 @@ function AssetFormFields({ draft, setDraft }) {
         </Field>
       </div>
 
-      <Field label="Priority — would you sell this to pay down debt?">
+      <Field label="Priority Ã¢ÂÂ would you sell this to pay down debt?">
         <div style={{ marginTop: 4 }}>
           <PriorityToggle value={draft.priority ?? "keep"} onChange={f("priority")} />
           <p style={{ fontFamily: mono, fontSize: 10, color: t.muted, margin: "8px 0 0", lineHeight: 1.6 }}>
@@ -228,7 +228,7 @@ function AssetFormFields({ draft, setDraft }) {
   );
 }
 
-// ─── ASSET ROW ────────────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ ASSET ROW Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function AssetRow({ asset, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
@@ -292,7 +292,7 @@ function AssetRow({ asset, onSave, onDelete }) {
             <div style={{ fontFamily: mono, fontSize: 10, color: t.muted }}>
               quick sale
               {haircut !== null && haircut > 0 && (
-                <span style={{ color: t.red }}> (−{fmtPct(haircut)})</span>
+                <span style={{ color: t.red }}> (Ã¢ÂÂ{fmtPct(haircut)})</span>
               )}
             </div>
           </div>
@@ -342,7 +342,7 @@ function AddAssetRow({ onSave, onCancel }) {
   );
 }
 
-// ─── TOTALS HEADER ────────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ TOTALS HEADER Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function TotalsHeader({ assets }) {
   const totalEstimated = useMemo(
@@ -426,7 +426,7 @@ function TotalsHeader({ assets }) {
   );
 }
 
-// ─── PRIORITY FILTER ──────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ PRIORITY FILTER Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function PriorityFilter({ active, onChange }) {
   const options = [
@@ -458,7 +458,280 @@ function PriorityFilter({ active, onChange }) {
   );
 }
 
-// ─── MAIN EXPORT ──────────────────────────────────────────────────────────────
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ MAIN EXPORT Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+
+
+// ─── CSV IMPORT ENGINE ────────────────────────────────────────────────────────
+
+// Column name aliases ─ maps common user column names to our field names
+const COL_ALIASES = {
+    name:           ["name", "asset", "item", "description", "asset name", "item name", "title"],
+    category:       ["category", "type", "asset type", "asset category", "kind", "class"],
+    estimatedValue: ["estimated value", "value", "estimated", "market value", "appraisal",
+                     "worth", "est value", "est. value", "retail value", "fmv", "fair market value"],
+    quickSaleValue: ["quick sale value", "quick sale", "sale value", "liquidation value",
+                     "quick value", "sell value", "resale", "resale value", "quick"],
+    priority:       ["priority", "sell?", "sell", "disposition", "status", "action"],
+};
+
+function normalizeHeader(h) {
+    return (h ?? "").toString().toLowerCase().replace(/[$(),]/g, "").trim();
+}
+
+function matchColumn(header) {
+    const norm = normalizeHeader(header);
+    for (const [field, aliases] of Object.entries(COL_ALIASES)) {
+        if (aliases.some(a => norm === a || norm.includes(a))) return field;
+    }
+    return null;
+}
+
+function parsePriority(val) {
+    const v = (val ?? "").toString().toLowerCase().trim();
+    if (["sell", "yes", "y", "1", "true", "selling"].includes(v)) return "sell";
+    if (["maybe", "possibly", "consider", "2", "perhaps"].includes(v)) return "maybe";
+    return "keep";
+}
+
+function parseCSV(text) {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) throw new Error("CSV must have a header row and at least one data row.");
+
+    // Parse header
+    const headers = lines[0].split(",").map(h => h.replace(/^"|"$/g, "").trim());
+    const colMap = {}; // field -> column index
+    headers.forEach((h, i) => {
+        const field = matchColumn(h);
+        if (field && !(field in colMap)) colMap[field] = i;
+    });
+
+    if (!colMap.name) throw new Error("Could not find a 'Name' column. Make sure one column is named 'Name' or 'Asset'.");
+
+    // Parse rows
+    const rows = [];
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        // Handle quoted fields with commas inside
+        const cells = [];
+        let inQuote = false, cell = "";
+        for (const ch of line + ",") {
+            if (ch === '"') { inQuote = !inQuote; continue; }
+            if (ch === "," && !inQuote) { cells.push(cell.trim()); cell = ""; continue; }
+            cell += ch;
+        }
+
+        const name = cells[colMap.name]?.replace(/^"|"$/g,"").trim();
+        if (!name) continue;
+
+        const estRaw  = colMap.estimatedValue !== undefined ? cells[colMap.estimatedValue] : "";
+        const qsvRaw  = colMap.quickSaleValue  !== undefined ? cells[colMap.quickSaleValue]  : "";
+        const catRaw  = colMap.category        !== undefined ? cells[colMap.category]        : "";
+        const priRaw  = colMap.priority        !== undefined ? cells[colMap.priority]        : "";
+
+        const estimatedValue = parseFloat((estRaw ?? "").replace(/[$,]/g,"")) || 0;
+        const quickSaleValue = parseFloat((qsvRaw ?? "").replace(/[$,]/g,"")) || estimatedValue * 0.7;
+        const category       = catRaw?.trim() || "Other";
+        const priority       = parsePriority(priRaw);
+
+        rows.push({ id: uid(), name, category, estimatedValue, quickSaleValue, priority });
+    }
+
+    if (!rows.length) throw new Error("No valid rows found in CSV.");
+    return { rows, colMap, headers };
+}
+
+// Template CSV content
+const CSV_TEMPLATE = `Name,Category,Estimated Value,Quick Sale Value,Priority
+2021 Honda Civic,Vehicle,18000,15000,keep
+Living Room Furniture,Furniture,3500,1200,maybe
+Gold Jewelry,Jewelry,2800,2000,sell
+Investment Account,Investment Account,12000,12000,keep
+`;
+
+function downloadTemplate() {
+    const blob = new Blob([CSV_TEMPLATE], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "assets-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ─── CSV IMPORT UI ────────────────────────────────────────────────────────────
+
+function CsvImport({ onImport }) {
+    const [stage, setStage] = useState("idle"); // idle | preview | error
+    const [preview, setPreview] = useState(null); // { rows, colMap, headers }
+    const [error, setError] = useState("");
+    const [mode, setMode] = useState("merge"); // merge | replace
+
+    function handleFile(e) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const result = parseCSV(ev.target.result);
+                setPreview(result);
+                setStage("preview");
+                setError("");
+            } catch (err) {
+                setError(err.message);
+                setStage("error");
+            }
+        };
+        reader.readAsText(file);
+        e.target.value = "";
+    }
+
+    function handleConfirm() {
+        if (!preview?.rows) return;
+        onImport(preview.rows, mode);
+        setStage("idle");
+        setPreview(null);
+    }
+
+    function handleCancel() {
+        setStage("idle");
+        setPreview(null);
+        setError("");
+    }
+
+    const is = {
+        background: t.bg0, border: `1px solid ${t.border}`,
+        borderRadius: 5, color: t.bright,
+        padding: "5px 10px", fontFamily: mono, fontSize: 11, outline: "none",
+    };
+
+    if (stage === "idle") {
+        return (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <label style={{ display: "block" }}>
+                    <input type="file" accept=".csv,.txt" onChange={handleFile} style={{ display: "none" }} />
+                    <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 5,
+                        fontFamily: mono, fontSize: 11, fontWeight: 700,
+                        background: t.bg2, color: t.body,
+                        border: `1px solid ${t.border}`, borderRadius: 5,
+                        padding: "5px 12px", cursor: "pointer", letterSpacing: "0.06em",
+                        userSelect: "none",
+                    }}>
+                        â Import CSV
+                    </span>
+                </label>
+                <button onClick={downloadTemplate} style={{
+                    fontFamily: mono, fontSize: 11, color: t.muted,
+                    background: "transparent", border: "none", cursor: "pointer",
+                    padding: 0, textDecoration: "underline", letterSpacing: "0.04em",
+                }}>
+                    Download template
+                </button>
+            </div>
+        );
+    }
+
+    if (stage === "error") {
+        return (
+            <div style={{ border: `1px solid #7f1d1d`, background: "#1c0707", borderRadius: 8, padding: "12px 16px" }}>
+                <div style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, color: "#ef4444", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    CSV Import Error
+                </div>
+                <div style={{ fontFamily: mono, fontSize: 12, color: "#fca5a5", marginBottom: 10, lineHeight: 1.6 }}>{error}</div>
+                <div style={{ fontFamily: mono, fontSize: 11, color: "#f87171", marginBottom: 10, lineHeight: 1.7 }}>
+                    Expected columns: Name, Category, Estimated Value, Quick Sale Value, Priority.
+                    Download the template for the exact format.
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                    <label>
+                        <input type="file" accept=".csv,.txt" onChange={handleFile} style={{ display: "none" }} />
+                        <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, background: t.bg2, color: t.body, border: `1px solid ${t.border}`, borderRadius: 5, padding: "5px 12px", cursor: "pointer" }}>
+                            Try another file
+                        </span>
+                    </label>
+                    <button onClick={downloadTemplate} style={{ fontFamily: mono, fontSize: 11, color: t.muted, background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+                        Download template
+                    </button>
+                    <button onClick={handleCancel} style={{ fontFamily: mono, fontSize: 11, color: t.subtle, background: "transparent", border: "none", cursor: "pointer" }}>
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    // Preview stage
+    return (
+        <div style={{ border: `1px solid #166534`, background: "#052e16", borderRadius: 8, padding: "14px 16px" }}>
+            <div style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, color: "#22c55e", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                Preview â {preview.rows.length} asset{preview.rows.length !== 1 ? "s" : ""} found
+            </div>
+
+            {/* Column mapping summary */}
+            <div style={{ fontFamily: mono, fontSize: 11, color: "#4ade80", marginBottom: 10, lineHeight: 1.7 }}>
+                Detected columns: {Object.entries(preview.colMap).map(([f,i]) =>
+                    `${preview.headers[i]} â ${f}`).join(" Â· ")}
+            </div>
+
+            {/* First 5 rows preview */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 12 }}>
+                {preview.rows.slice(0, 5).map((r, i) => (
+                    <div key={i} style={{ display: "flex", gap: 12, padding: "6px 10px", background: "#071c0e", borderRadius: 5, alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ fontFamily: mono, fontSize: 12, color: "#e2e8f0", minWidth: 140 }}>{r.name}</span>
+                        <span style={{ fontFamily: mono, fontSize: 11, color: "#86efac" }}>{r.category}</span>
+                        <span style={{ fontFamily: mono, fontSize: 11, color: "#4ade80", marginLeft: "auto" }}>{fmtMoney(r.estimatedValue)}</span>
+                        <span style={{ fontFamily: mono, fontSize: 10, color:
+                            r.priority === "sell" ? "#f87171" : r.priority === "maybe" ? "#fcd34d" : "#86efac",
+                            background: r.priority === "sell" ? "#450a0a" : r.priority === "maybe" ? "#78350f44" : "#052e16",
+                            padding: "2px 6px", borderRadius: 3, border: "none",
+                        }}>{r.priority}</span>
+                    </div>
+                ))}
+                {preview.rows.length > 5 && (
+                    <div style={{ fontFamily: mono, fontSize: 11, color: "#4ade80", paddingLeft: 10 }}>
+                        + {preview.rows.length - 5} more...
+                    </div>
+                )}
+            </div>
+
+            {/* Merge vs replace */}
+            <div style={{ display: "flex", gap: 12, marginBottom: 14, alignItems: "center" }}>
+                <span style={{ fontFamily: mono, fontSize: 11, color: "#86efac" }}>Import mode:</span>
+                {[
+                    { v: "merge",   label: "Add to existing" },
+                    { v: "replace", label: "Replace all assets" },
+                ].map(opt => (
+                    <label key={opt.v} style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer" }}>
+                        <input type="radio" name="csvMode" value={opt.v} checked={mode === opt.v}
+                            onChange={() => setMode(opt.v)} />
+                        <span style={{ fontFamily: mono, fontSize: 11, color: mode === opt.v ? "#e2e8f0" : "#86efac" }}>
+                            {opt.label}
+                        </span>
+                    </label>
+                ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={handleConfirm} style={{
+                    fontFamily: mono, fontSize: 11, fontWeight: 700,
+                    background: "#166534", color: "#dcfce7",
+                    border: "1px solid #166534", borderRadius: 5,
+                    padding: "6px 16px", cursor: "pointer", letterSpacing: "0.06em",
+                }}>
+                    â Import {preview.rows.length} asset{preview.rows.length !== 1 ? "s" : ""}
+                </button>
+                <button onClick={handleCancel} style={{
+                    fontFamily: mono, fontSize: 11, color: "#4ade80",
+                    background: "transparent", border: "none", cursor: "pointer",
+                }}>
+                    Cancel
+                </button>
+            </div>
+        </div>
+    );
+}
 
 export default function Assets({ state, onUpdate }) {
   const [adding, setAdding] = useState(false);
@@ -473,6 +746,9 @@ export default function Assets({ state, onUpdate }) {
   const handleAdd    = (a) => { updateAssets([...assets, a]); setAdding(false); };
   const handleSave   = (a) => updateAssets(assets.map(x => x.id === a.id ? a : x));
   const handleDelete = (id) => updateAssets(assets.filter(x => x.id !== id));
+  const handleCsvImport = (rows, mode) => {
+      updateAssets(mode === "replace" ? rows : [...assets, ...rows]);
+  };
 
   const filtered = filter === "all" ? assets : assets.filter(a => a.priority === filter);
 
@@ -503,6 +779,7 @@ export default function Assets({ state, onUpdate }) {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <PriorityFilter active={filter} onChange={setFilter} />
+          <CsvImport onImport={handleCsvImport} />
           <button onClick={() => setAdding(true)} style={{
             fontFamily: mono, fontSize: 11, fontWeight: 700,
             background: t.amber, color: "#0f1421",
@@ -531,8 +808,8 @@ export default function Assets({ state, onUpdate }) {
             fontFamily: mono, fontSize: 12, color: t.muted, lineHeight: 1.8,
           }}>
             {assets.length === 0
-              ? <>No assets yet.<br />Add vehicles, savings accounts, investments — anything with value.</>
-              : <>No assets with priority "{filter}" — <button onClick={() => setFilter("all")} style={{ fontFamily: mono, fontSize: 12, color: t.amber, background: "none", border: "none", cursor: "pointer", padding: 0 }}>show all</button>.</>
+              ? <>No assets yet.<br />Add vehicles, savings accounts, investments Ã¢ÂÂ anything with value.</>
+              : <>No assets with priority "{filter}" Ã¢ÂÂ <button onClick={() => setFilter("all")} style={{ fontFamily: mono, fontSize: 12, color: t.amber, background: "none", border: "none", cursor: "pointer", padding: 0 }}>show all</button>.</>
             }
           </div>
         )}
