@@ -1,21 +1,56 @@
+/**
+ * AttackMap.jsx — The primary coaching view.
+ *
+ * Structure:
+ *   1. Engine functions  — pure calculations (no React)
+ *   2. UI primitives     — reusable styled components
+ *   3. Section components — each panel on the page
+ *   4. export default AttackMap — the page shell and model computation
+ *
+ * Data flow:
+ *   state → financialKey (useMemo) → sim (useMemo, expensive) → model (useMemo, fast)
+ *   model fields flow down as props to section components.
+ */
 import React, { useMemo, useState } from "react";
 import { normalizeToMonthly, normalizeDebtsForRanking, rankDebtsCanonical } from "../calculations.js";
 
 // ─── TOKENS ───────────────────────────────────────────────────────────────────
 const t = {
-    bg0:"#080b10",bg1:"#0f172a",bg2:"#111827",
-    border:"#1e293b",bright:"#e2e8f0",body:"#cbd5e1",
-    muted:"#94a3b8",subtle:"#64748b",
-    amber:"#f59e0b",amberD:"#78350f",amberBg:"#1a1200",
-    green:"#22c55e",greenD:"#166534",greenBg:"#052e16",
-    red:"#ef4444",redD:"#7f1d1d",redBg:"#1c0707",
-    blue:"#38bdf8",blueD:"#1e3a5f",blueBg:"#0c1a2e",
+    // Backgrounds
+    bg0: "#080b10",
+    bg1: "#0f172a",
+    bg2: "#111827",
+    // Text
+    border: "#1e293b",
+    bright: "#e2e8f0",
+    body:   "#cbd5e1",
+    muted:  "#94a3b8",
+    subtle: "#64748b",
+    // Amber (actions, focus)
+    amber:   "#f59e0b",
+    amberD:  "#78350f",
+    amberBg: "#1a1200",
+    // Green (success, progress)
+    green:   "#22c55e",
+    greenD:  "#166534",
+    greenBg: "#052e16",
+    // Red (danger, warnings)
+    red:   "#ef4444",
+    redD:  "#7f1d1d",
+    redBg: "#1c0707",
+    // Blue (informational)
+    blue:   "#38bdf8",
+    blueD:  "#1e3a5f",
+    blueBg: "#0c1a2e",
 };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-const fmt = n=>`$${Math.abs(Number(n)||0).toLocaleString(undefined,{maximumFractionDigits:0})}`;
-const fmtD = n=>`$${Math.abs(Number(n)||0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-const fmtPct = n=>`${(Number(n)||0).toFixed(1)}%`;
+/** Format as whole-dollar amount: $1,234 */
+const fmt   = n => `$${Math.abs(Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+/** Format as dollar amount with cents: $1,234.56 */
+const fmtD  = n => `$${Math.abs(Number(n) || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+/** Format as percentage: 24.9% */
+const fmtPct = n => `${(Number(n) || 0).toFixed(1)}%`;
 
 function monthsAway(dateStr) {
     if (!dateStr) return null;
@@ -29,10 +64,29 @@ function addMonthsLabel(n) {
     d.setMonth(d.getMonth()+n);
     return d.toLocaleDateString("en-US",{month:"short",year:"numeric"});
 }
-function ipm(bal,apr) { return (Number(bal)||0)*((Number(apr)||0)/100)/12; }
-function getEffApr(d) { const p=Number(d.promoApr); return p>0?p:Number(d.apr)||0; }
-function getFutApr(d) { return Number(d.apr)||0; }
-// Returns the APR that applies at monthOffset months from now — switches from promo to regular when promo expires
+/** Monthly interest: balance × APR / 12. */
+function ipm(bal, apr) {
+    return (Number(bal) || 0) * ((Number(apr) || 0) / 100) / 12;
+}
+
+/**
+ * Current effective APR — promo rate if active, otherwise regular APR.
+ * Use for display and for non-simulation calculations (risk flags, danger warnings).
+ * For simulation use aprAt() which is time-aware across future months.
+ */
+function getEffApr(d) {
+    const p = Number(d.promoApr);
+    return p > 0 ? p : Number(d.apr) || 0;
+}
+
+/** The regular (post-promo) APR. Used to show what rate will reset to. */
+function getFutApr(d) { return Number(d.apr) || 0; }
+
+/**
+ * Time-aware APR: returns the APR that applies at monthOffset months from now.
+ * Switches from promo to regular rate when the promo end date is reached.
+ * Used exclusively inside simulate() for correct multi-month projections.
+ */
 function aprAt(d, monthOffset) {
     const regular = Number(d.apr) || 0;
     const promo = Number(d.promoApr);
@@ -40,14 +94,10 @@ function aprAt(d, monthOffset) {
     const promoEnd = d.promoEnd ? new Date(d.promoEnd) : null;
     if (!promoEnd || isNaN(promoEnd)) return promo;
     const now = new Date();
-    const monthsUntilExpiry = (promoEnd.getFullYear()-now.getFullYear())*12+(promoEnd.getMonth()-now.getMonth());
+    const monthsUntilExpiry =
+        (promoEnd.getFullYear() - now.getFullYear()) * 12 +
+        (promoEnd.getMonth() - now.getMonth());
     return monthOffset < monthsUntilExpiry ? promo : regular;
-}
-
-// ─── DEBT NORMALIZATION ───────────────────────────────────────────────────────
-function normalizeDebts(cards,loans) {
-    // Delegate to shared canonical normalization
-    return normalizeDebtsForRanking(cards,loans);
 }
 
 // ─── PRIORITY ENGINE ──────────────────────────────────────────────────────────
@@ -70,15 +120,22 @@ function scoreDebt(d, monthOffset=0) {
 }
 function prioritizeDebts(cards, loans) {
     // Initial ranking uses shared canonical function
-    return rankDebtsCanonical(normalizeDebts(cards, loans).filter(d => d.balance > 0));
+    return rankDebtsCanonical(normalizeDebtsForRanking(cards, loans).filter(d => d.balance > 0));
 }
 
 // ─── SURPLUS ──────────────────────────────────────────────────────────────────
+/** income - essential expenses - all minimums = monthly attack surplus. */
 function calcSurplus(state) {
-    const income=(state.incomes??[]).reduce((s,i)=>s+normalizeToMonthly(i.amount,i.frequency),0);
-    const essential=(state.expenses??[]).filter(e=>e.essential!==false).reduce((s,e)=>s+normalizeToMonthly(e.amount,e.frequency),0);
-    const minimums=[...(state.creditCards??[]).map(c=>Number(c.minPayment)||0),...(state.loans??[]).map(l=>Number(l.monthlyPayment)||0)].reduce((a,b)=>a+b,0);
-    return {income,essential,minimums,surplus:Math.max(0,income-essential-minimums)};
+    const income = (state.incomes ?? [])
+        .reduce((s, i) => s + normalizeToMonthly(i.amount, i.frequency), 0);
+    const essential = (state.expenses ?? [])
+        .filter(e => e.essential !== false)
+        .reduce((s, e) => s + normalizeToMonthly(e.amount, e.frequency), 0);
+    const minimums = [
+        ...(state.creditCards ?? []).map(c => Number(c.minPayment) || 0),
+        ...(state.loans ?? []).map(l => Number(l.monthlyPayment) || 0),
+    ].reduce((a, b) => a + b, 0);
+    return { income, essential, minimums, surplus: Math.max(0, income - essential - minimums) };
 }
 
 // ─── SAFE TO PAY ─────────────────────────────────────────────────────────────
@@ -152,53 +209,77 @@ function calcSafeToPay(state) {
 }
 
 // ─── PROMO DEADLINES ─────────────────────────────────────────────────────────
+/** Returns active promo debts sorted by urgency (soonest first). */
 function calcPromos(cards) {
-    return (cards??[]).filter(c=>{
-        const pm=monthsAway(c.promoEnd);
-        return Number(c.promoApr)>0&&pm!==null&&pm>=0;
-    }).map(c=>{
-        const pm=monthsAway(c.promoEnd);
-        const bal=Number(c.balance)||0;
-        return {...c,monthsRemaining:pm,required:bal/Math.max(1,pm),
-            urgency:pm<=2?"critical":pm<=6?"urgent":"watch",
-            futureApr:Number(c.apr)||0,promoApr:Number(c.promoApr)||0};
-    }).sort((a,b)=>a.monthsRemaining-b.monthsRemaining);
+    return (cards ?? [])
+        .map(c => ({ ...c, _pm: monthsAway(c.promoEnd) }))
+        .filter(c => Number(c.promoApr) > 0 && c._pm !== null && c._pm >= 0)
+        .map(c => {
+            const pm = c._pm;
+            const bal = Number(c.balance) || 0;
+            return {
+                ...c,
+                monthsRemaining: pm,
+                required: bal / Math.max(1, pm), // minimum monthly to clear before reset
+                urgency: pm <= 2 ? "critical" : pm <= 6 ? "urgent" : "watch",
+                futureApr: Number(c.apr) || 0,
+                promoApr: Number(c.promoApr) || 0,
+            };
+        })
+        .sort((a, b) => a.monthsRemaining - b.monthsRemaining);
 }
 
 // ─── MIN PAYMENT DANGER ───────────────────────────────────────────────────────
+/** Identifies debts where minimum payments are mostly or entirely interest. */
 function calcDangers(debts) {
-    return debts.filter(d=>d.balance>0).map(d=>{
-        const interest=ipm(d.balance,getEffApr(d));
-        const payment=d.monthlyPayment||d.minPayment||0;
-        const share=payment>0?interest/payment:1;
-        const level=payment<=interest?"critical":share>=0.75?"danger":share>=0.5?"warning":null;
-        const msg=payment<=interest?"This payment doesn't cover interest. Balance is growing.":
-            share>=0.75?"Most of this payment is interest. Balance moves very slowly.":
-            share>=0.5?"Over half this payment is interest.":null;
-        return {...d,interest,payment,share,level,msg};
-    }).filter(d=>d.level);
+    return debts
+        .filter(d => d.balance > 0)
+        .map(d => {
+            const interest = ipm(d.balance, getEffApr(d));
+            const payment  = d.monthlyPayment || d.minPayment || 0;
+            const share    = payment > 0 ? interest / payment : 1;
+            const level =
+                payment <= interest ? "critical" :
+                share >= 0.75       ? "danger"   :
+                share >= 0.5        ? "warning"  : null;
+            const msg =
+                payment <= interest ? "This payment doesn't cover interest. Balance is growing." :
+                share >= 0.75       ? "Most of this payment is interest. Balance moves very slowly." :
+                share >= 0.5        ? "Over half this payment is interest." : null;
+            return { ...d, interest, payment, share, level, msg };
+        })
+        .filter(d => d.level);
 }
 
 // ─── RISK FLAGS ───────────────────────────────────────────────────────────────
-function calcRisk(state,surplus,prioritized,promos) {
-    const flags=[];
-    const cash=Number(state.savingsBalance)||0;
-    const buffer=Number(state.emergencyTarget)||2500;
-    const cards=state.creditCards??[];
-    const totalDebt=prioritized.reduce((s,d)=>s+d.balance,0);
-    const totalLimit=cards.reduce((s,c)=>s+Number(c.limit||0),0);
-    const util=totalLimit>0?totalDebt/totalLimit:0;
-    const income=(state.incomes??[]).reduce((s,i)=>s+normalizeToMonthly(i.amount,i.frequency),0);
-    const mins=prioritized.reduce((s,d)=>s+d.minPayment,0);
+/** Generates risk flags for the dashboard. Returns flags[] and overall severity. */
+function calcRisk(state, surplus, prioritized, promos) {
+    const flags = [];
+    const cash       = Number(state.savingsBalance) || 0;
+    const buffer     = Number(state.emergencyTarget) || 2500;
+    const cards      = state.creditCards ?? [];
+    const totalDebt  = prioritized.reduce((s, d) => s + d.balance, 0);
+    const totalLimit = cards.reduce((s, c) => s + Number(c.limit || 0), 0);
+    const util       = totalLimit > 0 ? totalDebt / totalLimit : 0;
+    const income     = (state.incomes ?? []).reduce((s, i) => s + normalizeToMonthly(i.amount, i.frequency), 0);
+    const mins       = prioritized.reduce((s, d) => s + d.minPayment, 0);
 
-    if(cash<buffer) flags.push({level:"red",text:`Emergency buffer short — have ${fmt(cash)}, need ${fmt(buffer)}`});
-    if(surplus<=0) flags.push({level:"red",text:"No monthly surplus — nothing to attack debt with"});
-    if(util>0.8) flags.push({level:"red",text:`Credit utilization at ${fmtPct(util*100)} — above 80%`});
-    if(promos.filter(p=>p.urgency==="critical").length) flags.push({level:"red",text:"Promo rate expiring within 2 months — act now"});
-    if(promos.filter(p=>p.urgency==="urgent").length) flags.push({level:"amber",text:"Promo rate expiring within 6 months"});
-    const spendCards=cards.filter(c=>Number(c.monthlySpend)>0&&Number(c.balance)>0);
-    if(spendCards.length) flags.push({level:"amber",text:`New charges on ${spendCards.length} payoff card${spendCards.length>1?"s":""} — breaking the plan`});
-    if(income>0&&mins/income>0.4) flags.push({level:"amber",text:`Minimums are ${fmtPct(mins/income*100)} of income`});
+    if (cash < buffer)
+        flags.push({ level: "red",   text: `Emergency buffer short — have ${fmt(cash)}, need ${fmt(buffer)}` });
+    if (surplus <= 0)
+        flags.push({ level: "red",   text: "No monthly surplus — nothing to attack debt with" });
+    if (util > 0.8)
+        flags.push({ level: "red",   text: `Credit utilization at ${fmtPct(util * 100)} — above 80%` });
+    if (promos.some(p => p.urgency === "critical"))
+        flags.push({ level: "red",   text: "Promo rate expiring within 2 months — act now" });
+    if (promos.some(p => p.urgency === "urgent"))
+        flags.push({ level: "amber", text: "Promo rate expiring within 6 months" });
+
+    const spendCards = cards.filter(c => Number(c.monthlySpend) > 0 && Number(c.balance) > 0);
+    if (spendCards.length)
+        flags.push({ level: "amber", text: `New charges on ${spendCards.length} payoff card${spendCards.length > 1 ? "s" : ""} — breaking the plan` });
+    if (income > 0 && mins / income > 0.4)
+        flags.push({ level: "amber", text: `Minimums are ${fmtPct(mins / income * 100)} of income` });
 
     // Cards with a balance but no minimum entered
     const zeroMinCards = (state.creditCards??[]).filter(c=>Number(c.balance)>0&&!(Number(c.minPayment)>0));
@@ -222,27 +303,31 @@ function calcRisk(state,surplus,prioritized,promos) {
 }
 
 // ─── MILESTONES ───────────────────────────────────────────────────────────────
-function calcMilestones(state,prioritized) {
-    const cards=state.creditCards??[];
-    const totalDebt=prioritized.reduce((s,d)=>s+d.balance,0);
-    const totalLimit=cards.reduce((s,c)=>s+Number(c.limit||0),0);
-    const util=totalLimit>0?totalDebt/totalLimit:0;
-    const highApr=prioritized.filter(d=>getEffApr(d)>=20).reduce((s,d)=>s+d.balance,0);
-    const completed=[],upcoming=[];
+/** Computes completed wins and next 4 upcoming milestone targets. */
+function calcMilestones(state, prioritized) {
+    const cards = state.creditCards ?? [];
+    const totalDebt = prioritized.reduce((s, d) => s + d.balance, 0);
+    const totalLimit = cards.reduce((s, c) => s + Number(c.limit || 0), 0);
+    const util = totalLimit > 0 ? totalDebt / totalLimit : 0;
+    const highAprDebt = prioritized.filter(d => getEffApr(d) >= 20).reduce((s, d) => s + d.balance, 0);
+    const completed = [], upcoming = [];
 
-    if(prioritized.length>0) upcoming.push({label:`Pay off ${prioritized[0].name}`,detail:`${fmt(prioritized[0].balance)} remaining`,priority:true});
-    if(util>=0.9) upcoming.push({label:`Get utilization below 90% — now ${fmtPct(util*100)}`});
-    else if(util>=0.75) upcoming.push({label:`Get utilization below 75% — now ${fmtPct(util*100)}`});
-    else if(util>=0.5) upcoming.push({label:`Get utilization below 50% — now ${fmtPct(util*100)}`});
-    else completed.push({label:"Utilization below 50%"});
+    if (prioritized.length > 0) {
+        upcoming.push({ label: `Pay off ${prioritized[0].name}`, detail: `${fmt(prioritized[0].balance)} remaining`, priority: true });
+    }
 
-    if(highApr>0) upcoming.push({label:`Eliminate all 20%+ APR debt — ${fmt(highApr)} remaining`});
-    else completed.push({label:"All 20%+ APR debt gone"});
+    if (util >= 0.9)       upcoming.push({ label: `Get utilization below 90% — now ${fmtPct(util * 100)}` });
+    else if (util >= 0.75) upcoming.push({ label: `Get utilization below 75% — now ${fmtPct(util * 100)}` });
+    else if (util >= 0.5)  upcoming.push({ label: `Get utilization below 50% — now ${fmtPct(util * 100)}` });
+    else                   completed.push({ label: "Utilization below 50%" });
 
-    if(cards.filter(c=>Number(c.balance)>0).length>0) upcoming.push({label:"Clear all credit card balances"});
-    else completed.push({label:"All credit cards cleared"});
+    if (highAprDebt > 0) upcoming.push({ label: `Eliminate all 20%+ APR debt — ${fmt(highAprDebt)} remaining` });
+    else                 completed.push({ label: "All 20%+ APR debt gone" });
 
-    return {completed,upcoming:upcoming.slice(0,4)};
+    if (cards.filter(c => Number(c.balance) > 0).length > 0) upcoming.push({ label: "Clear all credit card balances" });
+    else                                                       completed.push({ label: "All credit cards cleared" });
+
+    return { completed, upcoming: upcoming.slice(0, 4) };
 }
 
 // ─── SPENDING LEAKS ───────────────────────────────────────────────────────────
@@ -309,44 +394,62 @@ function simulate(prioritized,surplus,lumpSum,maxMonths=60) {
             return pm===m;
         }).map(d=>d.name);
 
-        const instructions=[];
-        if(lump>0) instructions.push({type:"lump",text:`Deploy ${fmt(lump)} lump sum → ${focus.name}`,amt:lump,debt:focus.name});
-        // Warn if promo just expired on focus debt
-        const focusPromoExpiredThisMonth = aprAt(focus,m)>aprAt(focus,m-1||0) && m>0;
-        instructions.push({type:"focus",
-            text:`Pay ${fmt(totalFocusPay)}/mo → ${focus.name}${focusPromoExpiredThisMonth?" ⚠ rate reset this month":""}`,
-            amt:totalFocusPay,debt:focus.name});
-        rest.forEach(d=>{
-            if(d.balance>0.01) {
-                const rateReset=m>0&&aprAt(d,m)>aprAt(d,m-1);
-                instructions.push({type:rateReset?"lump":"minimum",
-                    text:rateReset?`⚠ ${d.name} promo expired — now ${fmtPct(aprAt(d,m))} APR. Min ${fmt(d.minPayment)}/mo`:`Minimum only — ${fmt(d.minPayment)}/mo`,
-                    amt:d.minPayment,debt:d.name});
+        // Build payment instructions for this month
+        const instructions = [];
+        if (lump > 0) {
+            instructions.push({ type:"lump", text:`Deploy ${fmt(lump)} lump sum → ${focus.name}`, amt:lump, debt:focus.name });
+        }
+        // Warn if promo just expired on the focus debt this month
+        const focusPromoExpiredThisMonth = m > 0 && aprAt(focus, m) > aprAt(focus, m - 1);
+        instructions.push({ type:"focus",
+            text:`Pay ${fmt(totalFocusPay)}/mo → ${focus.name}${focusPromoExpiredThisMonth ? " ⚠ rate reset this month" : ""}`,
+            amt:totalFocusPay, debt:focus.name });
+        rest.forEach(d => {
+            if (d.balance > 0.01) {
+                const rateReset = m > 0 && aprAt(d, m) > aprAt(d, m - 1);
+                instructions.push({ type: rateReset ? "lump" : "minimum",
+                    text: rateReset
+                        ? `⚠ ${d.name} promo expired — now ${fmtPct(aprAt(d,m))} APR. Min ${fmt(d.minPayment)}/mo`
+                        : `Minimum only — ${fmt(d.minPayment)}/mo`,
+                    amt: d.minPayment, debt: d.name });
             }
         });
-        if(overflow>0&&next) instructions.push({type:"overflow",text:`Leftover ${fmt(overflow)} → ${next.name}`,amt:overflow,debt:next.name});
-        instructions.push({type:"rule",text:"No new credit card charges. Not one.",debt:null});
+        if (overflow > 0 && next) {
+            instructions.push({ type:"overflow", text:`Leftover ${fmt(overflow)} → ${next.name}`, amt:overflow, debt:next.name });
+        }
+        instructions.push({ type:"rule", text:"No new credit card charges. Not one.", debt:null });
 
-        months.push({month:m+1,label:addMonthsLabel(m),focusDebt:focus.name,focusId:focus.id,
-            focusBalance:focus.balance,balAfter:remaining,cleared,lump,pool,
-            nextTarget:next?.name||null,instructions,totalInterest,promoExpiries,
-            limitBreaches:limitBreaches||[]});
-
-        // Advance balances — all using time-aware APR for next month
-        debts=debts.map(d=>{
-            if(d.id===focus.id) return {...d,balance:remaining,_monthsElapsed:(d._monthsElapsed||0)+1};
-            const nextApr=aprAt(d,m+1);
-            const elapsed=(d._monthsElapsed||0)+1;
-            // Enforce loan term: if term is set and elapsed >= term, loan is paid off
-            if(d._type==="loan"&&d.termRemainingMonths>0&&elapsed>=d.termRemainingMonths){
-                return {...d,balance:0,_monthsElapsed:elapsed};
+        // Advance all debt balances to next month using time-aware APR
+        debts = debts.map(d => {
+            if (d.id === focus.id) return { ...d, balance:remaining, _monthsElapsed:(d._monthsElapsed||0)+1 };
+            const nextApr = aprAt(d, m + 1);
+            const elapsed = (d._monthsElapsed || 0) + 1;
+            // Enforce loan term: force balance to 0 when term expires
+            if (d._type === "loan" && d.termRemainingMonths > 0 && elapsed >= d.termRemainingMonths) {
+                return { ...d, balance:0, _monthsElapsed:elapsed };
             }
-            if(d.id===next?.id) return {...d,balance:Math.max(0,d.balance-overflow+ipm(d.balance,nextApr)+d.monthlySpend),_monthsElapsed:elapsed};
-            return {...d,balance:Math.max(0,d.balance+ipm(d.balance,nextApr)+d.monthlySpend-d.minPayment),_monthsElapsed:elapsed};
+            if (d.id === next?.id) {
+                return { ...d, balance:Math.max(0, d.balance - overflow + ipm(d.balance, nextApr) + d.monthlySpend), _monthsElapsed:elapsed };
+            }
+            return { ...d, balance:Math.max(0, d.balance + ipm(d.balance, nextApr) + d.monthlySpend - d.minPayment), _monthsElapsed:elapsed };
         });
-        // Check for credit limit breaches on non-focus cards
-        const limitBreaches=debts.filter(d=>d._type==="card"&&d.limit>0&&d.balance>d.limit&&d.id!==focus.id).map(d=>d.name);
-        if(cleared) pool+=focus.minPayment||0;
+
+        // Detect credit limit breaches on non-focus cards after balance advance
+        const limitBreaches = debts
+            .filter(d => d._type === "card" && d.limit > 0 && d.balance > d.limit && d.id !== focus.id)
+            .map(d => d.name);
+
+        months.push({
+            month: m + 1, label: addMonthsLabel(m),
+            focusDebt: focus.name, focusId: focus.id,
+            focusBalance: focus.balance, balAfter: remaining,
+            cleared, lump, pool,
+            nextTarget: next?.name || null,
+            instructions, totalInterest, promoExpiries,
+            limitBreaches,
+        });
+
+        if (cleared) pool += focus.minPayment || 0;
     }
     return months;
 }
@@ -598,13 +701,7 @@ function Label({text,sub}) {
 function Grid({children,cols=2,gap=10}) {
     return <div style={{display:"grid",gridTemplateColumns:`repeat(${cols},minmax(0,1fr))`,gap}}>{children}</div>;
 }
-function Stat({label,value,sub,color=t.bright}) {
-    return <div style={{border:`1px solid ${t.border}`,background:t.bg2,borderRadius:10,padding:"12px 14px"}}>
-        <div style={{fontSize:10,color:t.subtle,letterSpacing:"0.08em",textTransform:"uppercase",marginBottom:5}}>{label}</div>
-        <div style={{fontSize:18,fontWeight:700,color,lineHeight:1.1}}>{value}</div>
-        {sub&&<div style={{fontSize:11,color:t.subtle,marginTop:3,lineHeight:1.4}}>{sub}</div>}
-    </div>;
-}
+
 function Inp({label,value,onChange,help}) {
     return <label style={{display:"flex",flexDirection:"column",gap:5}}>
         <span style={{fontSize:12,color:t.body}}>{label}</span>
@@ -1795,8 +1892,17 @@ function DebtFreeDate({debtFreeLabel, debtFreeMonth, planMonth}) {
 }
 
 export default function AttackMap({state,onUpdate,setTab}) {
-    // Financial data key — only recompute heavy simulations when debts/income/expenses change
-    // UI-only state (locks, paycheck inputs, savings balance) does not trigger simulation
+    // ─── MEMOIZATION STRATEGY ────────────────────────────────────────────────
+    // Split into two memos to avoid running expensive simulations on every keystroke.
+    //
+    // financialKey: stable JSON key of financial data only. Changes only when
+    //   debts, income, expenses, savings, or commitment-related fields change.
+    //
+    // sim: all heavy calculations (simulate, calcLeaks, calcInterestComparison).
+    //   Depends only on financialKey — not triggered by UI input changes.
+    //
+    // model: merges sim with fast-recalculating fields (safeData). Triggered by
+    //   savings balance / paycheck inputs without re-running the full simulation.
     const financialKey = useMemo(()=>JSON.stringify({
         cards: state.creditCards,
         loans: state.loans,
@@ -1831,7 +1937,7 @@ export default function AttackMap({state,onUpdate,setTab}) {
         });
         const prioritized = prioritizeDebts(lockedCards, state.loans);
         const promos=calcPromos(state.creditCards);
-        const allDebts=normalizeDebts(lockedCards,state.loans);
+        const allDebts=normalizeDebtsForRanking(lockedCards,state.loans);
         const dangers=calcDangers(allDebts);
         const risk=calcRisk(state,surplus,prioritized,promos);
         const milestones=calcMilestones(state,prioritized);

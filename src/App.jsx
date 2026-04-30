@@ -1,3 +1,11 @@
+/**
+ * App.jsx — Root component. Manages global state, persistence, import/export,
+ * and tab routing. All data lives here and flows down as props.
+ *
+ * State is persisted to localStorage on every change and exported/imported
+ * as plain JSON. The import flow also archives commitment history and builds
+ * balance snapshots for delta tracking.
+ */
 import { useEffect, useMemo, useState } from "react";
 import Debts from "./Views/Debts.jsx";
 import Expenses from "./Views/Expenses.jsx";
@@ -6,7 +14,7 @@ import SummaryView from "./Views/SummaryView.jsx";
 import Scenarios from "./Views/Scenarios.jsx";
 import Plan from "./Views/Plan.jsx";
 import AttackMap from "./Views/AttackMap.jsx";
-import { calcAll, normalizeToMonthly } from "./calculations.js";
+import { calcAll } from "./calculations.js";
 
 const STORAGE_KEY = "debt_reality_v1";
 
@@ -78,7 +86,6 @@ function importJSON(file, currentState, onSuccess, onError) {
                 prevSnapshot: parsed.prevSnapshot ?? currentState.prevSnapshot ?? null,
                 commitment: parsed.commitment ?? currentState.commitment ?? null,
                 commitHistory: Array.isArray(parsed.commitHistory) ? parsed.commitHistory : (currentState.commitHistory ?? []),
-                lastImportedAt: now,
             };
 
             onSuccess({
@@ -106,8 +113,6 @@ function importSummary(state) {
     if (incomes) parts.push(`${incomes} income source${incomes !== 1 ? "s" : ""}`);
     return parts.length ? `Loaded: ${parts.join(", ")}` : "Loaded";
 }
-
-// ─── INCOME VIEW ──────────────────────────────────────────────────────────────
 
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 
@@ -169,7 +174,6 @@ export default function App() {
                 let archivedHistory = state.commitHistory ?? [];
                 if (state.commitment && state.lastSnapshot) {
                     // Build a lightweight verification record to store in history
-                    const prevTotal = state.lastSnapshot.totalDebt || 0;
                     const actualTotal = [
                         ...(newState.creditCards ?? []),
                         ...(newState.loans ?? []),
@@ -217,12 +221,12 @@ export default function App() {
         switch (tab) {
             case "Attack Map": return <AttackMap state={state} onUpdate={setState} setTab={setTab} />;
             case "Trajectory": return <Plan state={state} />;
-            case "Debts": return <Debts state={state} onUpdate={setState} />;
-            case "Expenses": return <Expenses state={state} onUpdate={setState} />;
-            case "Assets": return <Assets state={state} onUpdate={setState} />;
-            case "Scenarios": return <Scenarios state={state} />;
-            case "Summary": return <SummaryView state={state} />;
-            default: return <AttackMap state={state} onUpdate={setState} />;
+            case "Debts":      return <Debts state={state} onUpdate={setState} />;
+            case "Expenses":   return <Expenses state={state} onUpdate={setState} />;
+            case "Assets":     return <Assets state={state} onUpdate={setState} />;
+            case "Scenarios":  return <Scenarios state={state} />;
+            case "Summary":    return <SummaryView state={state} />;
+            default:           return <AttackMap state={state} onUpdate={setState} />;
         }
     }
 

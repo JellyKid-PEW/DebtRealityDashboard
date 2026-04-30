@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
-import { normalizeToMonthly } from "../calculations.js";
+import { normalizeToMonthly, calcMonthlyIncome } from "../calculations.js";
 
-// ─── STYLE TOKENS (mirrors app palette) ──────────────────────────────────────
+// âââ STYLE TOKENS (mirrors app palette) ââââââââââââââââââââââââââââââââââââââ
 const mono = "'IBM Plex Mono', 'Courier New', monospace";
 
 const t = {
@@ -23,7 +23,7 @@ function fmtMoney(n) {
   }).format(n ?? 0);
 }
 
-// ─── PRIMITIVES ───────────────────────────────────────────────────────────────
+// âââ PRIMITIVES âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 const inputStyle = {
   fontFamily: mono, fontSize: 12,
@@ -103,7 +103,7 @@ function CheckboxInput({ label, checked, onChange }) {
           transition: "all 0.12s", cursor: "pointer",
         }}
       >
-        {checked && <span style={{ color: t.teal, fontSize: 10, lineHeight: 1 }}>✓</span>}
+        {checked && <span style={{ color: t.teal, fontSize: 10, lineHeight: 1 }}>â</span>}
       </div>
       {label}
     </label>
@@ -144,7 +144,7 @@ function Expandable({ open, children }) {
   );
 }
 
-// ─── CATEGORY BADGE ───────────────────────────────────────────────────────────
+// âââ CATEGORY BADGE âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 // Assign a consistent hue to a category string
 const CAT_COLORS = [
@@ -173,7 +173,7 @@ function CategoryBadge({ category }) {
   );
 }
 
-// ─── FREQUENCY DISPLAY ────────────────────────────────────────────────────────
+// âââ FREQUENCY DISPLAY ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 const FREQ_OPTIONS = ["weekly", "biweekly", "monthly", "annual"];
 
@@ -181,7 +181,7 @@ function freqLabel(freq) {
   return { weekly: "wk", biweekly: "2wk", monthly: "mo", annual: "yr" }[freq] ?? freq;
 }
 
-// ─── EXPENSE FORM FIELDS ──────────────────────────────────────────────────────
+// âââ EXPENSE FORM FIELDS ââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 const COMMON_CATEGORIES = [
   "Housing", "Food & Groceries", "Transport", "Utilities",
@@ -238,7 +238,7 @@ function ExpenseFormFields({ draft, setDraft }) {
   );
 }
 
-// ─── EXPENSE ROW ──────────────────────────────────────────────────────────────
+// âââ EXPENSE ROW ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 function ExpenseRow({ expense, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
@@ -345,7 +345,7 @@ function AddExpenseRow({ onSave, onCancel }) {
   );
 }
 
-// ─── TOTALS HEADER ────────────────────────────────────────────────────────────
+// âââ TOTALS HEADER ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 function TotalsHeader({ expenses }) {
   const totalMonthly = useMemo(
@@ -381,11 +381,12 @@ function TotalsHeader({ expenses }) {
         {[
           { label: "Monthly Baseline", value: totalMonthly, color: t.amber },
           { label: "Essential", value: essentialMonthly, color: t.teal },
+          { label: "% of Income", value: monthlyIncome > 0 ? `${Math.round(totalMonthly / monthlyIncome * 100)}%` : "—", color: totalMonthly > monthlyIncome * 0.7 ? t.red : totalMonthly > monthlyIncome * 0.5 ? t.amber : t.subtle, isText: true },
           { label: "Discretionary", value: discretionaryMonthly, color: t.subtle },
-        ].map(({ label, value, color }) => (
+        ].map(({ label, value, color, isText }) => (
           <div key={label} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             <span style={{ fontFamily: mono, fontSize: 10, color: t.muted, letterSpacing: "0.12em", textTransform: "uppercase" }}>{label}</span>
-            <span style={{ fontFamily: mono, fontSize: 20, fontWeight: 700, color }}>{fmtMoney(value)}</span>
+            <span style={{ fontFamily: mono, fontSize: 20, fontWeight: 700, color }}>{isText ? value : fmtMoney(value)}</span>
           </div>
         ))}
       </div>
@@ -417,7 +418,7 @@ function TotalsHeader({ expenses }) {
   );
 }
 
-// ─── LEGEND ───────────────────────────────────────────────────────────────────
+// âââ LEGEND âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 function Legend() {
   return (
@@ -435,7 +436,7 @@ function Legend() {
   );
 }
 
-// ─── MAIN EXPORT ──────────────────────────────────────────────────────────────
+// âââ MAIN EXPORT ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 
 export default function Expenses({ state, onUpdate }) {
   const [adding, setAdding] = useState(false);
@@ -461,7 +462,7 @@ export default function Expenses({ state, onUpdate }) {
       `}</style>
 
       {/* Totals header */}
-      <TotalsHeader expenses={expenses} />
+      <TotalsHeader expenses={expenses} monthlyIncome={calcMonthlyIncome(state.incomes ?? [])} />
 
       {/* Section header */}
       <div style={{
@@ -498,7 +499,7 @@ export default function Expenses({ state, onUpdate }) {
             fontFamily: mono, fontSize: 12, color: t.muted, lineHeight: 1.8,
           }}>
             No expenses added yet.<br />
-            Track rent, groceries, subscriptions — everything that leaves your account.
+            Track rent, groceries, subscriptions â everything that leaves your account.
           </div>
         )}
 

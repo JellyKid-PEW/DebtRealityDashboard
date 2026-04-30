@@ -249,7 +249,7 @@ function ComparisonChart({ baseline, scenario, scenarioLabel }) {
                         Trajectory Comparison
                     </div>
                     <div style={{ fontSize: 12, color: t.muted }}>
-                        Red = current plan · Blue = {scenarioLabel}
+                        Red = current plan Â· Blue = {scenarioLabel}
                     </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -598,7 +598,7 @@ function ScenarioConsolidation({ debts, baseTrajectory, extraPool, strategy, now
 
     // Total interest comparison
     const baseInterest = sumArr(debts, (d) => {
-        // rough: balance × apr / 12 × estimated months
+        // rough: balance Ã apr / 12 Ã estimated months
         const est = basePayoff || 36;
         return interestThisMonth(d.balance, effectiveApr(d, 0, nowMonth)) * est;
     });
@@ -1043,7 +1043,7 @@ function payoffMonths(debts, extraPool, strategy, nowMonth) {
 function weightedAvgApr(debts) {
     const total = sumArr(debts, d => d.balance);
     if (total === 0) return 0;
-    return sumArr(debts, d => d.balance * effectiveApr(d, 0, { getFullYear: () => new Date().getFullYear(), getMonth: () => new Date().getMonth() })) / total;
+    return sumArr(debts, d => d.balance * effectiveApr(d, 0, { getFullYear:()=>new Date().getFullYear(), getMonth:()=>new Date().getMonth() })) / total;
 }
 
 function evaluateConsolidation(subset, remaining, loanApr, termMonths, origFee, extraPool, strategy, nowMonth) {
@@ -1213,8 +1213,8 @@ function ScenarioConsolidationRecommender({ debts, extraPool, strategy, nowMonth
                     </Field>
                     <Field label="Term (months)">
                         <select value={termMonths} onChange={e => setTermMonths(Number(e.target.value))} style={iStyle}>
-                            {[12, 24, 36, 48, 60, 72].map(n => (
-                                <option key={n} value={n}>{n} months ({Math.round(n / 12)} {n <= 12 ? "year" : "years"})</option>
+                            {[12,24,36,48,60,72].map(n => (
+                                <option key={n} value={n}>{n} months ({Math.round(n/12)} {n<=12?"year":"years"})</option>
                             ))}
                         </select>
                     </Field>
@@ -1245,10 +1245,8 @@ function ScenarioConsolidationRecommender({ debts, extraPool, strategy, nowMonth
                     background: hasAnyGood ? t.greenBg : t.redBg,
                     borderRadius: 12, padding: 18,
                 }}>
-                    <div style={{
-                        fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
-                        color: hasAnyGood ? t.green : t.red, marginBottom: 8
-                    }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+                        color: hasAnyGood ? t.green : t.red, marginBottom: 8 }}>
                         {hasAnyGood ? "✓ Consolidation Can Help" : "✗ This Loan Doesn't Help"}
                     </div>
                     {hasAnyGood && topRecommended ? (
@@ -1286,18 +1284,14 @@ function ScenarioConsolidationRecommender({ debts, extraPool, strategy, nowMonth
                                                 {cfg.label}
                                             </span>
                                             {isTop && (
-                                                <span style={{
-                                                    fontSize: 10, fontWeight: 700, background: t.green, color: "#052e16",
-                                                    padding: "2px 7px", borderRadius: 4, letterSpacing: "0.08em"
-                                                }}>
+                                                <span style={{ fontSize: 10, fontWeight: 700, background: t.green, color: "#052e16",
+                                                    padding: "2px 7px", borderRadius: 4, letterSpacing: "0.08em" }}>
                                                     RECOMMENDED
                                                 </span>
                                             )}
                                             {cfg.disqualifiers.length > 0 && (
-                                                <span style={{
-                                                    fontSize: 10, fontWeight: 700, background: t.redBg, color: t.red,
-                                                    border: `1px solid ${t.redD}`, padding: "2px 7px", borderRadius: 4
-                                                }}>
+                                                <span style={{ fontSize: 10, fontWeight: 700, background: t.redBg, color: t.red,
+                                                    border: `1px solid ${t.redD}`, padding: "2px 7px", borderRadius: 4 }}>
                                                     NOT RECOMMENDED
                                                 </span>
                                             )}

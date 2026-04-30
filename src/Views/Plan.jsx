@@ -1,3 +1,12 @@
+/**
+ * Plan.jsx â Trajectory tab (the chart view).
+ *
+ * Shows the snowball debt payoff curve, clearance event markers,
+ * projected debt-free date, and attack order list.
+ *
+ * This is a read-only view â no state changes happen here.
+ * For payment instructions, the user should use the Attack Map tab.
+ */
 import React, { useMemo, useState } from "react";
 import {
     AreaChart, Area, XAxis, YAxis, Tooltip,
@@ -5,7 +14,7 @@ import {
 } from "recharts";
 import { normalizeToMonthly, normalizeDebtsForRanking, rankDebtsCanonical } from "../calculations.js";
 
-// âââ TOKENS âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ TOKENS Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 const t = {
     bg0: "#080b10",
@@ -25,17 +34,11 @@ const t = {
     blue: "#38bdf8",
 };
 
-// âââ HELPERS ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ HELPERS Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function fmt(n) {
     return `$${(Number(n) || 0).toLocaleString(undefined, {
         minimumFractionDigits: 0, maximumFractionDigits: 0,
-    })}`;
-}
-
-function fmtExact(n) {
-    return `$${(Number(n) || 0).toLocaleString(undefined, {
-        minimumFractionDigits: 2, maximumFractionDigits: 2,
     })}`;
 }
 
@@ -47,22 +50,11 @@ function startOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
 
 function addMonths(d, n) { return new Date(d.getFullYear(), d.getMonth() + n, 1); }
 
-function parseDateLike(v) {
-    if (!v) return null;
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : d;
-}
-
-function getPromoEnd(card) {
-    return parseDateLike(card?.promoEnd) || parseDateLike(card?.promoEndDate) ||
-        parseDateLike(card?.promoExpiration) || parseDateLike(card?.promoExpirationDate) ||
-        parseDateLike(card?.promoExpiry) || null;
-}
-
 function effectiveApr(debt, monthOffset, nowMonth) {
     const regular = Number(debt.apr) || 0;
     const promo = Number(debt.promoApr) > 0 ? Number(debt.promoApr) : null;
-    const promoEnd = debt.promoEndDate || null;
+    // normalizeDebtsForRanking stores the date in promoEnd (as a Date object)
+    const promoEnd = debt.promoEnd || null;
     if (!promo) return regular;
     if (!promoEnd) return promo;
     return addMonths(nowMonth, monthOffset) <= startOfMonth(promoEnd) ? promo : regular;
@@ -76,7 +68,7 @@ function monthLabel(offset, now) {
     return addMonths(now, offset).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 }
 
-// âââ DEBT MODEL âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ DEBT MODEL Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function buildDebts(state) {
     // Use shared canonical normalization so Plan and AttackMap always work from same data
@@ -92,19 +84,13 @@ function buildCompleted(state) {
     ];
 }
 
-// âââ FOCUS DEBT RANKING âââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ FOCUS DEBT RANKING Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 // Priority:
-//  1. Promo balances expiring â¤6mo that will reset to â¥20% APR
+//  1. Promo balances expiring Ã¢ÂÂ¤6mo that will reset to Ã¢ÂÂ¥20% APR
 //  2. Highest effective APR
 //  3. Smallest balance as tiebreak
-//  Never focus on loans <10% APR while high-APR card debt exists
 
-function rankDebts(debts) {
-    // Delegate to shared canonical ranking in calculations.js
-    return rankDebtsCanonical(debts);
-}
-
-// âââ CASH FLOW ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ CASH FLOW Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function calcCashFlow(state) {
     const income = sumArr(state.incomes ?? [], i =>
@@ -127,13 +113,7 @@ function calcCashFlow(state) {
     return { income, essentialExpenses, allExpenses, allMinimums, attackCapacity };
 }
 
-// âââ SAVINGS / EMERGENCY FUND âââââââââââââââââââââââââââââââââââââââââââââââââ
-
-const EMERGENCY_BUFFER_DEFAULT = 2500;
-
-
-
-// âââ TRAJECTORY (for chart) âââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ TRAJECTORY (for chart) Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function buildTrajectory(debts, attackCapacity, lumpSum, nowMonth, maxMonths = 84) {
     if (!debts.length) return { data: [{ month: 0, label: "Now", total: 0 }], events: [] };
@@ -147,7 +127,7 @@ function buildTrajectory(debts, attackCapacity, lumpSum, nowMonth, maxMonths = 8
 
     for (let m = 1; m <= maxMonths; m++) {
         // Re-rank each month as promo rates may change
-        if (working.length > 1) working = rankDebts(working);
+        if (working.length > 1) working = rankDebtsCanonical(working);
         if (!working.length) { data.push({ month: m, label: monthLabel(m, nowMonth), total: 0 }); break; }
 
         // Lump sum in month 1
@@ -193,7 +173,7 @@ function buildTrajectory(debts, attackCapacity, lumpSum, nowMonth, maxMonths = 8
     return { data, events };
 }
 
-// âââ CHART ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ CHART Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function TrajectoryChart({ data, events, totalDebt }) {
     if (!data.length) return null;
@@ -214,7 +194,7 @@ function TrajectoryChart({ data, events, totalDebt }) {
                         Debt Trajectory
                     </div>
                     <div style={{ fontSize: 12, color: t.muted }}>
-                        Each cleared debt accelerates the next â the snowball effect
+                        Each cleared debt accelerates the next Ã¢ÂÂ the snowball effect
                     </div>
                 </div>
                 {payoffPt
@@ -247,7 +227,7 @@ function TrajectoryChart({ data, events, totalDebt }) {
                         labelFormatter={m => {
                             const pt = data.find(p => p.month === m);
                             const ev = events.find(e => e.month === m);
-                            return ev ? `${pt?.label} â ${ev.names.join(" + ")} cleared` : pt?.label ?? `Month ${m}`;
+                            return ev ? `${pt?.label} Ã¢ÂÂ ${ev.names.join(" + ")} cleared` : pt?.label ?? `Month ${m}`;
                         }}
                     />
                     <ReferenceLine x={0} stroke={t.amber} strokeDasharray="4 3"
@@ -255,7 +235,7 @@ function TrajectoryChart({ data, events, totalDebt }) {
                     {events.map((ev, i) => (
                         <ReferenceLine key={ev.month} x={ev.month} stroke={t.green}
                             strokeDasharray="3 3" strokeOpacity={0.7}
-                            label={{ value: ev.names.join(" + ") + " â", fill: t.green, fontSize: 9, position: labelPos[i % 2] }} />
+                            label={{ value: ev.names.join(" + ") + " Ã¢ÂÂ", fill: t.green, fontSize: 9, position: labelPos[i % 2] }} />
                     ))}
                     <Area type="monotone" dataKey="total" stroke="#ef4444" strokeWidth={2.5}
                         fill="url(#dg)" dot={false} activeDot={{ r: 5, fill: "#ef4444", strokeWidth: 0 }} />
@@ -266,7 +246,7 @@ function TrajectoryChart({ data, events, totalDebt }) {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
                     {events.map(ev => (
                         <div key={ev.month} style={{ display: "flex", gap: 5, fontSize: 12, color: t.muted }}>
-                            <span style={{ color: t.green, fontWeight: 700 }}>â</span>
+                            <span style={{ color: t.green, fontWeight: 700 }}>Ã¢ÂÂ</span>
                             <span style={{ color: t.green }}>{ev.names.join(" + ")}</span>
                             <span style={{ color: t.subtle }}>~{ev.label}</span>
                         </div>
@@ -277,19 +257,19 @@ function TrajectoryChart({ data, events, totalDebt }) {
     );
 }
 
-// âââ COMPLETED DEBTS ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ COMPLETED DEBTS Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
 function CompletedDebts({ completed }) {
     if (!completed.length) return null;
     return (
         <div style={{ border: "1px solid #166534", background: t.greenDim, borderRadius: 12, padding: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: t.green, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-                â {completed.length} Debt{completed.length !== 1 ? "s" : ""} Cleared
+                Ã¢ÂÂ {completed.length} Debt{completed.length !== 1 ? "s" : ""} Cleared
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
                 {completed.map(d => (
                     <span key={d.id} style={{ background: "#14532d", border: "1px solid #166534", borderRadius: 6, padding: "4px 12px", fontSize: 13, color: "#86efac", fontWeight: 500 }}>
-                        â {d.name}
+                        Ã¢ÂÂ {d.name}
                     </span>
                 ))}
             </div>
@@ -300,16 +280,16 @@ function CompletedDebts({ completed }) {
     );
 }
 
-// âââ MAIN EXPORT ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ MAIN EXPORT Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
 
-export default function Plan({ state, onUpdate }) {
+export default function Plan({ state }) {
     const isMobile = window.innerWidth <= 768;
     const nowMonth = useMemo(() => startOfMonth(new Date()), []);
 
     const model = useMemo(() => {
         const debts = buildDebts(state);
         const completed = buildCompleted(state);
-        const ranked = rankDebts(debts);
+        const ranked = rankDebtsCanonical(debts);
         const cashFlow = calcCashFlow(state);
 
         const attackCapacity = Math.max(0, cashFlow.attackCapacity);
@@ -342,7 +322,7 @@ export default function Plan({ state, onUpdate }) {
                 <div style={{ fontSize: 14, color: t.muted }}>
                     {model.completed.length > 0
                         ? "All debts cleared."
-                        : "Add debts in the Debts tab â the plan will build itself from your numbers."}
+                        : "Add debts in the Debts tab Ã¢ÂÂ the plan will build itself from your numbers."}
                 </div>
                 {model.completed.length > 0 && <CompletedDebts completed={model.completed} />}
             </div>
@@ -358,15 +338,12 @@ export default function Plan({ state, onUpdate }) {
                     Trajectory
                 </h2>
                 <p style={{ fontSize: 13, color: t.muted, margin: 0, lineHeight: 1.7 }}>
-                    The big-picture view â snowball curve, phase breakdown, and projected payoff date. For payment instructions, use Attack Map.
+                    The big-picture view Ã¢ÂÂ snowball curve, phase breakdown, and projected payoff date. For payment instructions, use Attack Map.
                 </p>
             </div>
 
-            {/* Wins — cleared debts shown as motivation */}
+            {/* Wins â cleared debts shown as motivation */}
             {model.completed.length > 0 && <CompletedDebts completed={model.completed} />}
-
-            {/* Spend warnings — cards growing faster than being paid */}
-            <SpendWarnings debts={model.debts} />
 
             {/* Key stats */}
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: 12 }}>
@@ -383,30 +360,26 @@ export default function Plan({ state, onUpdate }) {
                 ))}
             </div>
 
-            {/* Trajectory chart — the main view */}
+            {/* Trajectory chart â the main view */}
             <TrajectoryChart
                 data={model.trajData}
                 events={model.trajEvents}
                 totalDebt={model.totalDebt}
             />
 
-            {/* Attack order — context for the chart, not instructions */}
+            {/* Attack order â context for the chart, not instructions */}
             <div style={{ border: `1px solid ${t.border}`, background: t.bg1, borderRadius: 12, padding: 16 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: t.muted, marginBottom: 12 }}>
-                    Attack Order — for payment instructions, use the Attack Map tab
+                    Attack Order â for payment instructions, use the Attack Map tab
                 </div>
                 {model.ranked.map((d, i) => (
-                    <div key={d.id} style={{
-                        display: "flex", alignItems: "center", gap: 12, padding: "10px 0",
-                        borderBottom: i < model.ranked.length - 1 ? `1px solid ${t.border}` : "none"
-                    }}>
-                        <div style={{
-                            width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
+                    <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0",
+                        borderBottom: i < model.ranked.length - 1 ? `1px solid ${t.border}` : "none" }}>
+                        <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0,
                             background: i === 0 ? t.amber : t.border,
                             color: i === 0 ? "#111" : t.subtle,
                             fontSize: 11, fontWeight: 700,
-                            display: "flex", alignItems: "center", justifyContent: "center"
-                        }}>
+                            display: "flex", alignItems: "center", justifyContent: "center" }}>
                             {i + 1}
                         </div>
                         <div style={{ flex: 1 }}>
@@ -416,10 +389,10 @@ export default function Plan({ state, onUpdate }) {
                             </div>
                             <div style={{ fontSize: 11, color: t.muted, marginTop: 2 }}>
                                 {d.isPromoUrgent
-                                    ? `⚠ promo expires in ${d.promoMonthsLeft}mo → ${fmtPct(d.futureApr)} · ${fmt(d.balance)}`
+                                    ? `â  promo expires in ${d.promoMonthsLeft}mo â ${fmtPct(d.futureApr)} Â· ${fmt(d.balance)}`
                                     : d.promoApr !== null
-                                        ? `${fmtPct(d.promoApr)} promo → ${fmtPct(d.futureApr)} later · ${fmt(d.balance)}`
-                                        : `${fmtPct(d.currentApr)} APR · ${fmt(d.balance)}`}
+                                        ? `${fmtPct(d.promoApr)} promo â ${fmtPct(d.futureApr)} later Â· ${fmt(d.balance)}`
+                                        : `${fmtPct(d.currentApr)} APR Â· ${fmt(d.balance)}`}
                             </div>
                         </div>
                         <div style={{ fontSize: 12, color: t.muted, flexShrink: 0 }}>min {fmt(d.minPayment)}/mo</div>

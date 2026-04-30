@@ -71,7 +71,7 @@ function monthsAway(dateStr) {
     const d = new Date(dateStr);
     if (isNaN(d)) return null;
     const now = new Date();
-    return (d.getFullYear() - now.getFullYear()) * 12 + (d.getMonth() - now.getMonth());
+    return (d.getFullYear()-now.getFullYear())*12+(d.getMonth()-now.getMonth());
 }
 
 function fmtPct(n) {
@@ -96,12 +96,6 @@ function reorderByIds(items, draggedId, targetId) {
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
     return normalizeOrder(next);
-}
-
-function effectiveApr(card) {
-    return card.promoApr != null && card.promoApr !== "" && Number(card.promoApr) > 0
-        ? Number(card.promoApr)
-        : Number(card.apr) || 0;
 }
 
 function SectionHeader({ title, onAdd, addLabel }) {
@@ -275,7 +269,6 @@ function Field({ label, children, help }) {
         </label>
     );
 }
-}
 
 function TextInput({ value, onChange, placeholder = "" }) {
     return (
@@ -397,7 +390,7 @@ function DragHandle() {
                 padding: "2px 6px",
             }}
         >
-            â®â®
+            Ã¢ÂÂ®Ã¢ÂÂ®
         </div>
     );
 }
@@ -417,7 +410,7 @@ function CardFormFields({ draft, setDraft }) {
             <Field label="Card Name">
                 <TextInput value={draft.name} onChange={f("name")} placeholder="e.g. Chase Freedom" />
             </Field>
-            <Field label="Due Day (1â31)">
+            <Field label="Due Day (1Ã¢ÂÂ31)">
                 <NumberInput value={draft.dueDay} onChange={f("dueDay")} min={1} />
             </Field>
             <Field label="Balance ($)">
@@ -438,10 +431,10 @@ function CardFormFields({ draft, setDraft }) {
             <Field label="Avg Monthly Payment ($)">
                 <NumberInput value={draft.monthlyPayment} onChange={f("monthlyPayment")} />
             </Field>
-            <Field label="Promo APR (%) â optional">
+            <Field label="Promo APR (%) Ã¢ÂÂ optional">
                 <NumberInput value={draft.promoApr} onChange={f("promoApr")} placeholder="e.g. 0" />
             </Field>
-            <Field label="Promo End Date â optional">
+            <Field label="Promo End Date Ã¢ÂÂ optional">
                 <TextInput value={draft.promoEnd} onChange={f("promoEnd")} placeholder="YYYY-MM-DD" />
             </Field>
         </div>
@@ -463,7 +456,7 @@ function LoanFormFields({ draft, setDraft }) {
             <Field label="Loan Name">
                 <TextInput value={draft.name} onChange={f("name")} placeholder="e.g. Toyota Loan" />
             </Field>
-            <Field label="Due Day (1â31)">
+            <Field label="Due Day (1Ã¢ÂÂ31)">
                 <NumberInput value={draft.dueDay} onChange={f("dueDay")} min={1} />
             </Field>
             <Field label="Type">
@@ -590,9 +583,9 @@ function CardRow({ card, onSave, onDelete, draggableProps, prevDebts }) {
                 : "flat";
 
     const trendMeta = {
-        up: { symbol: "â", color: t.red, label: "spending > paying" },
-        down: { symbol: "â", color: t.green, label: "paying > spending" },
-        flat: { symbol: "â", color: t.subtle, label: "balanced" },
+        up: { symbol: "Ã¢ÂÂ", color: t.red, label: "spending > paying" },
+        down: { symbol: "Ã¢ÂÂ", color: t.green, label: "paying > spending" },
+        flat: { symbol: "Ã¢ÂÂ", color: t.subtle, label: "balanced" },
     }[trend];
 
     const utilPct = card.limit > 0 ? (card.balance / card.limit) * 100 : null;
@@ -611,8 +604,8 @@ function CardRow({ card, onSave, onDelete, draggableProps, prevDebts }) {
 
     // Negative amortization check
     const effectiveApr = Number(card.promoApr) > 0 ? Number(card.promoApr) : Number(card.apr) || 0;
-    const monthlyInterest = (Number(card.balance) || 0) * effectiveApr / 100 / 12;
-    const isNegAmort = (Number(card.monthlyPayment) || 0) + (Number(card.monthlySpend) || 0) <= monthlyInterest && monthlyInterest > 0;
+    const monthlyInterest = (Number(card.balance)||0) * effectiveApr / 100 / 12;
+    const isNegAmort = (Number(card.monthlyPayment)||0) + (Number(card.monthlySpend)||0) <= monthlyInterest && monthlyInterest > 0;
 
     function handleSave() {
         if (!draft.name.trim()) return;
@@ -1117,7 +1110,7 @@ export default function Debts({ state, onUpdate }) {
                                 <>
                                     No loans added yet.
                                     <br />
-                                    Car loans, mortgages, personal loans â track them all here.
+                                    Car loans, mortgages, personal loans Ã¢ÂÂ track them all here.
                                 </>
                             }
                         />
