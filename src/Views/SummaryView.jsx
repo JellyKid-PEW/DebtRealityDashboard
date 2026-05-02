@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { normalizeToMonthly, normalizeDebtsForRanking, rankDebtsCanonical } from "../calculations.js";
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ STYLE TOKENS Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── S ───────────────────────
 const mono = "'IBM Plex Mono', 'Courier New', monospace";
 const display = "'Georgia', 'Times New Roman', serif";
 
@@ -16,14 +16,14 @@ const t = {
 };
 
 function fmtMoney(n) {
-  if (!isFinite(n ?? Infinity)) return "Ã¢ÂÂ";
+  if (!isFinite(n ?? Infinity)) return "â";
   return new Intl.NumberFormat("en-US", {
     style: "currency", currency: "USD",
     minimumFractionDigits: 0, maximumFractionDigits: 0,
   }).format(Math.abs(n ?? 0));
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ BIG NUMBER CARD Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── D ───────────────────────
 
 function BigStat({ label, value, valueColor, sub, icon }) {
   return (
@@ -60,7 +60,7 @@ function BigStat({ label, value, valueColor, sub, icon }) {
   );
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ DIRECTION BANNER Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── R ───────────────────────
 
 const BANNER = {
   increasing: {
@@ -177,7 +177,7 @@ function DirectionBanner({ direction, amount, cardSpend, cardPayments }) {
   );
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ IMPROVEMENT TIP Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── P ───────────────────────
 
 function ImprovementTip({ direction, netAmount, cardSpend }) {
   const isIncreasing = direction === "increasing";
@@ -187,7 +187,7 @@ function ImprovementTip({ direction, netAmount, cardSpend }) {
     ? `Reducing card spending by ${fmtMoney(Math.max(halfAmount, 50))}/month would cut the increase roughly in half.`
     : `You're on the right track. Staying consistent matters more than any single big move.`;
 
-  const icon  = isIncreasing ? "Ã°ÂÂÂ¡" : "Ã¢ÂÂ";
+  const icon  = isIncreasing ? "ð¡" : "â";
   const color = isIncreasing ? t.amber : t.green;
   const bg    = isIncreasing ? "#f59e0b0d" : "#22c55e0d";
   const brd   = isIncreasing ? "#92400e" : "#166534";
@@ -224,16 +224,16 @@ function ImprovementTip({ direction, netAmount, cardSpend }) {
   );
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ BREATHING ROOM VISUAL Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── L ───────────────────────
 
 function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
   const pct = monthlyIncome > 0 ? Math.max(0, Math.min(100, (cashFlow / monthlyIncome) * 100)) : 0;
   const isNegative = cashFlow < 0;
   const color = isNegative ? t.red : cashFlow < 300 ? t.amber : t.green;
   const label = isNegative
-    ? "Things are tight Ã¢ÂÂ spending exceeds income"
+    ? "Things are tight â spending exceeds income"
     : cashFlow < 300
-    ? "Not much buffer Ã¢ÂÂ watch discretionary spending"
+    ? "Not much buffer â watch discretionary spending"
     : "Good breathing room";
 
   return (
@@ -242,7 +242,7 @@ function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
       borderRadius: 12, padding: "24px 28px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 18 }}>Ã°ÂÂÂ¬Ã¯Â¸Â</span>
+        <span style={{ fontSize: 18 }}>ð¬ï¸</span>
         <span style={{
           fontFamily: mono, fontSize: 11, color: t.subtle,
           letterSpacing: "0.14em", textTransform: "uppercase",
@@ -255,7 +255,7 @@ function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
         fontWeight: 700, color,
         lineHeight: 1.1, marginBottom: 12,
       }}>
-        {isNegative ? `Ã¢ÂÂ${fmtMoney(Math.abs(cashFlow))}` : fmtMoney(cashFlow)}
+        {isNegative ? `â${fmtMoney(Math.abs(cashFlow))}` : fmtMoney(cashFlow)}
       </div>
 
       {/* Gauge bar */}
@@ -289,7 +289,7 @@ function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
   );
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ EMPTY STATE Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── E ───────────────────────
 
 function EmptySummaryView() {
   return (
@@ -298,7 +298,7 @@ function EmptySummaryView() {
       justifyContent: "center", minHeight: 400, gap: 20, textAlign: "center",
       padding: "48px 24px",
     }}>
-      <span style={{ fontSize: 48 }}>Ã°ÂÂÂ </span>
+      <span style={{ fontSize: 48 }}>ð </span>
       <div>
         <p style={{
           fontFamily: display, fontSize: 22, color: t.bright,
@@ -316,7 +316,7 @@ function EmptySummaryView() {
   );
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ MAIN EXPORT Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── T ───────────────────────
 
 export default function SummaryView({ state }) {
   const calc = useMemo(() => {
@@ -408,10 +408,10 @@ export default function SummaryView({ state }) {
         letterSpacing: "0.16em", textTransform: "uppercase",
         marginBottom: 4,
       }}>
-        Household Summary ÃÂ· Summary View
+        Household Summary Â· Summary View
       </div>
 
-      {/* Ã¢ÂÂÃ¢ÂÂ PRIMARY BANNER Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+      {/* ââ PRIMARY BANNER ââââââââââââââââââââââââââââââââ */}
       <DirectionBanner
         direction={direction}
         amount={amount}
@@ -419,21 +419,21 @@ export default function SummaryView({ state }) {
         cardPayments={totalCardPayments}
       />
 
-      {/* Ã¢ÂÂÃ¢ÂÂ KEY NUMBERS Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+      {/* ââ KEY NUMBERS âââââââââââââââââââââââââââââââââââ */}
       <div className="pv-stats">
         <BigStat
           label="Money coming in"
           value={fmtMoney(monthlyIncome)}
           valueColor={t.green}
           sub="Combined household income each month"
-          icon="Ã°ÂÂÂµ"
+          icon="ðµ"
         />
         <BigStat
           label="Total debt owed"
           value={fmtMoney(totalDebt)}
           valueColor={t.red}
           sub="All cards and loans combined"
-          icon="Ã°ÂÂÂ"
+          icon="ð"
         />
         {attackSurplus > 0 && (
           <BigStat
@@ -455,24 +455,24 @@ export default function SummaryView({ state }) {
         )}
       </div>
 
-      {/* Ã¢ÂÂÃ¢ÂÂ BREATHING ROOM Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+      {/* ââ BREATHING ROOM ââââââââââââââââââââââââââââââââ */}
       <BreathingRoomGauge cashFlow={cashFlow} monthlyIncome={monthlyIncome} />
 
-      {/* Ã¢ÂÂÃ¢ÂÂ IMPROVEMENT TIP Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+      {/* ââ IMPROVEMENT TIP âââââââââââââââââââââââââââââââ */}
       <ImprovementTip
         direction={direction}
         netAmount={amount}
         cardSpend={totalCardSpend}
       />
 
-      {/* Ã¢ÂÂÃ¢ÂÂ FOOTER NOTE Ã¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂÃ¢ÂÂ */}
+      {/* ââ FOOTER NOTE âââââââââââââââââââââââââââââââââââ */}
       <div style={{
         fontFamily: mono, fontSize: 10, color: t.muted,
         textAlign: "center", lineHeight: 1.7,
         borderTop: `1px solid ${t.border}`, paddingTop: 16, marginTop: 4,
       }}>
         Numbers update automatically as your data changes.
-        This view shows the big picture Ã¢ÂÂ no jargon, no tables.
+        This view shows the big picture â no jargon, no tables.
       </div>
     </div>
   );

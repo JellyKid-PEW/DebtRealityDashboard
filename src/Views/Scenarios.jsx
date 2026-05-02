@@ -598,7 +598,7 @@ function ScenarioConsolidation({ debts, baseTrajectory, extraPool, strategy, now
 
     // Total interest comparison
     const baseInterest = sumArr(debts, (d) => {
-        // rough: balance Ã apr / 12 Ã estimated months
+        // rough: balance × apr / 12 × estimated months
         const est = basePayoff || 36;
         return interestThisMonth(d.balance, effectiveApr(d, 0, nowMonth)) * est;
     });

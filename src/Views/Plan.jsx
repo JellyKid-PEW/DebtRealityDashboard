@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { normalizeToMonthly, normalizeDebtsForRanking, rankDebtsCanonical } from "../calculations.js";
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ TOKENS Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── S ───────────────────────
 
 const t = {
     bg0: "#080b10",
@@ -34,7 +34,7 @@ const t = {
     blue: "#38bdf8",
 };
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ HELPERS Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── S ───────────────────────
 
 function fmt(n) {
     return `$${(Number(n) || 0).toLocaleString(undefined, {
@@ -68,7 +68,7 @@ function monthLabel(offset, now) {
     return addMonths(now, offset).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ DEBT MODEL Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── L ───────────────────────
 
 function buildDebts(state) {
     // Use shared canonical normalization so Plan and AttackMap always work from same data
@@ -84,13 +84,13 @@ function buildCompleted(state) {
     ];
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ FOCUS DEBT RANKING Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── G ───────────────────────
 // Priority:
-//  1. Promo balances expiring Ã¢ÂÂ¤6mo that will reset to Ã¢ÂÂ¥20% APR
+//  1. Promo balances expiring â¤6mo that will reset to â¥20% APR
 //  2. Highest effective APR
 //  3. Smallest balance as tiebreak
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ CASH FLOW Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── W ───────────────────────
 
 function calcCashFlow(state) {
     const income = sumArr(state.incomes ?? [], i =>
@@ -113,7 +113,7 @@ function calcCashFlow(state) {
     return { income, essentialExpenses, allExpenses, allMinimums, attackCapacity };
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ TRAJECTORY (for chart) Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── TRAJECTORY (for chart) ────────────────────────────────────────────────
 
 function buildTrajectory(debts, attackCapacity, lumpSum, nowMonth, maxMonths = 84) {
     if (!debts.length) return { data: [{ month: 0, label: "Now", total: 0 }], events: [] };
@@ -173,7 +173,7 @@ function buildTrajectory(debts, attackCapacity, lumpSum, nowMonth, maxMonths = 8
     return { data, events };
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ CHART Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── T ───────────────────────
 
 function TrajectoryChart({ data, events, totalDebt }) {
     if (!data.length) return null;
@@ -194,7 +194,7 @@ function TrajectoryChart({ data, events, totalDebt }) {
                         Debt Trajectory
                     </div>
                     <div style={{ fontSize: 12, color: t.muted }}>
-                        Each cleared debt accelerates the next Ã¢ÂÂ the snowball effect
+                        Each cleared debt accelerates the next â the snowball effect
                     </div>
                 </div>
                 {payoffPt
@@ -227,7 +227,7 @@ function TrajectoryChart({ data, events, totalDebt }) {
                         labelFormatter={m => {
                             const pt = data.find(p => p.month === m);
                             const ev = events.find(e => e.month === m);
-                            return ev ? `${pt?.label} Ã¢ÂÂ ${ev.names.join(" + ")} cleared` : pt?.label ?? `Month ${m}`;
+                            return ev ? `${pt?.label} â ${ev.names.join(" + ")} cleared` : pt?.label ?? `Month ${m}`;
                         }}
                     />
                     <ReferenceLine x={0} stroke={t.amber} strokeDasharray="4 3"
@@ -235,7 +235,7 @@ function TrajectoryChart({ data, events, totalDebt }) {
                     {events.map((ev, i) => (
                         <ReferenceLine key={ev.month} x={ev.month} stroke={t.green}
                             strokeDasharray="3 3" strokeOpacity={0.7}
-                            label={{ value: ev.names.join(" + ") + " Ã¢ÂÂ", fill: t.green, fontSize: 9, position: labelPos[i % 2] }} />
+                            label={{ value: ev.names.join(" + ") + " â", fill: t.green, fontSize: 9, position: labelPos[i % 2] }} />
                     ))}
                     <Area type="monotone" dataKey="total" stroke="#ef4444" strokeWidth={2.5}
                         fill="url(#dg)" dot={false} activeDot={{ r: 5, fill: "#ef4444", strokeWidth: 0 }} />
@@ -246,7 +246,7 @@ function TrajectoryChart({ data, events, totalDebt }) {
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
                     {events.map(ev => (
                         <div key={ev.month} style={{ display: "flex", gap: 5, fontSize: 12, color: t.muted }}>
-                            <span style={{ color: t.green, fontWeight: 700 }}>Ã¢ÂÂ</span>
+                            <span style={{ color: t.green, fontWeight: 700 }}>â</span>
                             <span style={{ color: t.green }}>{ev.names.join(" + ")}</span>
                             <span style={{ color: t.subtle }}>~{ev.label}</span>
                         </div>
@@ -257,19 +257,19 @@ function TrajectoryChart({ data, events, totalDebt }) {
     );
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ COMPLETED DEBTS Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── S ───────────────────────
 
 function CompletedDebts({ completed }) {
     if (!completed.length) return null;
     return (
         <div style={{ border: "1px solid #166534", background: t.greenDim, borderRadius: 12, padding: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: t.green, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-                Ã¢ÂÂ {completed.length} Debt{completed.length !== 1 ? "s" : ""} Cleared
+                â {completed.length} Debt{completed.length !== 1 ? "s" : ""} Cleared
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
                 {completed.map(d => (
                     <span key={d.id} style={{ background: "#14532d", border: "1px solid #166534", borderRadius: 6, padding: "4px 12px", fontSize: 13, color: "#86efac", fontWeight: 500 }}>
-                        Ã¢ÂÂ {d.name}
+                        â {d.name}
                     </span>
                 ))}
             </div>
@@ -280,7 +280,7 @@ function CompletedDebts({ completed }) {
     );
 }
 
-// Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─ MAIN EXPORT Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─Ã¢Â─Â─
+// ─── T ───────────────────────
 
 export default function Plan({ state }) {
     const isMobile = window.innerWidth <= 768;
@@ -322,7 +322,7 @@ export default function Plan({ state }) {
                 <div style={{ fontSize: 14, color: t.muted }}>
                     {model.completed.length > 0
                         ? "All debts cleared."
-                        : "Add debts in the Debts tab Ã¢ÂÂ the plan will build itself from your numbers."}
+                        : "Add debts in the Debts tab â the plan will build itself from your numbers."}
                 </div>
                 {model.completed.length > 0 && <CompletedDebts completed={model.completed} />}
             </div>
@@ -338,7 +338,7 @@ export default function Plan({ state }) {
                     Trajectory
                 </h2>
                 <p style={{ fontSize: 13, color: t.muted, margin: 0, lineHeight: 1.7 }}>
-                    The big-picture view Ã¢ÂÂ snowball curve, phase breakdown, and projected payoff date. For payment instructions, use Attack Map.
+                    The big-picture view â snowball curve, phase breakdown, and projected payoff date. For payment instructions, use Attack Map.
                 </p>
             </div>
 
