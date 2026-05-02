@@ -9,7 +9,7 @@
  */
 import React, { useMemo } from "react";
 import {
-    LineChart, Line, XAxis, YAxis, Tooltip,
+    AreaChart, Area, XAxis, YAxis, Tooltip,
     ReferenceLine, ResponsiveContainer,
 } from "recharts";
 import { normalizeToMonthly, normalizeDebtsForRanking, rankDebtsCanonical } from "../calculations.js";
@@ -126,32 +126,22 @@ const DEBT_COLORS = [
 function buildTrajectory(debts, attackCapacity, lumpSum, nowMonth, maxMonths = 84) {
     if (!debts.length) return { data: [{ month: 0, label: "Now", total: 0 }], events: [], debtKeys: [] };
 
-    // Assign a stable color to each debt by its original index
-    const debtColors = {};
-    debts.forEach((d, i) => { debtColors[d.id] = DEBT_COLORS[i % DEBT_COLORS.length]; });
-    const debtKeys = debts.map(d => ({ id: d.id, name: d.name, color: debtColors[d.id] }));
+    // Assign a color to each debt — used in the clearance event legend below the chart
+    const debtKeys = debts.map((d, i) => ({
+        id: d.id, name: d.name, color: DEBT_COLORS[i % DEBT_COLORS.length],
+    }));
 
     let working = debts.map(d => ({ ...d, balance: Number(d.balance) || 0 }));
     let pool = attackCapacity;
     let lumpRemaining = lumpSum;
 
-    // Build initial data point with per-debt balances
-    const makePoint = (month, label, ws) => {
-        const pt = { month, label, total: Math.max(0, Math.round(sumArr(ws, d => d.balance))) };
-        debts.forEach(d => { pt[d.id] = Math.round(ws.find(w => w.id === d.id)?.balance ?? 0); });
-        return pt;
-    };
-
-    const data = [makePoint(0, "Now", working)];
+    const data = [{ month: 0, label: "Now", total: Math.round(sumArr(working, d => d.balance)) }];
     const events = [];
 
     for (let m = 1; m <= maxMonths; m++) {
         if (working.length > 1) working = rankDebtsCanonical(working);
         if (!working.length) {
-            // Pad all debt balances to 0 at clearance
-            const zeroPt = { month: m, label: monthLabel(m, nowMonth), total: 0 };
-            debts.forEach(d => { zeroPt[d.id] = 0; });
-            data.push(zeroPt);
+            data.push({ month: m, label: monthLabel(m, nowMonth), total: 0 });
             break;
         }
 
@@ -166,12 +156,9 @@ function buildTrajectory(debts, attackCapacity, lumpSum, nowMonth, maxMonths = 8
             d.balance = Math.max(0, d.balance);
         }
 
-        const totalMin = sumArr(working, d => d.minPayment || 0);
-        let payPool = totalMin + pool;
+        let payPool = sumArr(working, d => d.minPayment || 0) + pool;
         const focus = working[0];
-        const others = working.slice(1);
-
-        for (const d of others) {
+        for (const d of working.slice(1)) {
             const pay = Math.min(d.balance, d.minPayment || 0);
             d.balance = Math.max(0, d.balance - pay);
             payPool -= pay;
@@ -180,16 +167,18 @@ function buildTrajectory(debts, attackCapacity, lumpSum, nowMonth, maxMonths = 8
 
         const cleared = working.filter(d => d.balance <= 0.01);
         if (cleared.length) {
-            events.push({ month: m, label: monthLabel(m, nowMonth), names: cleared.map(d => d.name) });
+            // Attach the color of each cleared debt so the legend below can show it
+            const clearedWithColor = cleared.map(d => ({
+                name: d.name,
+                color: debtKeys.find(dk => dk.id === d.id)?.color ?? t.green,
+            }));
+            events.push({ month: m, label: monthLabel(m, nowMonth), cleared: clearedWithColor });
             pool += sumArr(cleared, d => d.minPayment || 0);
         }
         working = working.filter(d => d.balance > 0.01);
 
-        // Build data point — cleared debts get 0, others get current balance
-        const pt = { month: m, label: monthLabel(m, nowMonth), total: Math.max(0, Math.round(sumArr(working, d => d.balance))) };
-        debts.forEach(d => { pt[d.id] = Math.round(working.find(w => w.id === d.id)?.balance ?? 0); });
-        data.push(pt);
-        if (pt.total === 0) break;
+        data.push({ month: m, label: monthLabel(m, nowMonth), total: Math.max(0, Math.round(sumArr(working, d => d.balance))) });
+        if (data[data.length - 1].total === 0) break;
     }
 
     return { data, events, debtKeys };
@@ -197,20 +186,22 @@ function buildTrajectory(debts, attackCapacity, lumpSum, nowMonth, maxMonths = 8
 
 // ─── CHART COMPONENT ───────────────────────────────────────────────────────────
 
-function TrajectoryChart({ data, events, totalDebt, debtKeys }) {
+function TrajectoryChart({ data, events, totalDebt }) {
     if (!data.length) return null;
 
-    const payoffPt = data.find(p => p.total === 0);
-    const finalPt = data[data.length - 1];
-    const maxY = (data[0]?.total || totalDebt) * 1.06;
-    const len = data.length;
+    const payoffPt  = data.find(p => p.total === 0);
+    const finalPt   = data[data.length - 1];
+    const startTotal = data[0]?.total || totalDebt || 1;
+    // Y domain: 0 → starting total, no extra headroom so the curve fills the chart
+    const maxY = startTotal;
+    const len  = data.length;
     const step = len > 48 ? 12 : len > 24 ? 6 : len > 12 ? 3 : 1;
     const ticks = data.filter(p => p.month === 0 || p.month % step === 0).map(p => p.month);
-    // debtKeys: [{ id, name, color }] — used for per-debt lines and legend
 
     return (
         <div style={{ border: `1px solid ${t.border}`, background: t.bg1, borderRadius: 12, padding: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+            {/* Header row */}
+            <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
                 <div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: t.bright, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>
                         Debt Trajectory
@@ -229,66 +220,64 @@ function TrajectoryChart({ data, events, totalDebt, debtKeys }) {
                 }
             </div>
 
-            {/* Per-debt color legend */}
-            {debtKeys && debtKeys.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                    {debtKeys.map(dk => (
-                        <div key={dk.id} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11 }}>
-                            <span style={{ display: "inline-block", width: 20, height: 3, borderRadius: 2, background: dk.color, flexShrink: 0 }} />
-                            <span style={{ color: t.body }}>{dk.name}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            <ResponsiveContainer width="100%" height={260}>
-                <LineChart data={data} margin={{ top: 8, right: 8, left: 4, bottom: 0 }}>
+            {/* Chart */}
+            <ResponsiveContainer width="100%" height={280}>
+                <AreaChart data={data} margin={{ top: 4, right: 8, left: 4, bottom: 0 }}>
+                    <defs>
+                        <linearGradient id="debtGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%"  stopColor="#ef4444" stopOpacity={0.25} />
+                            <stop offset="95%" stopColor="#ef4444" stopOpacity={0.02} />
+                        </linearGradient>
+                    </defs>
                     <XAxis dataKey="month" ticks={ticks}
                         tickFormatter={m => data.find(p => p.month === m)?.label ?? ""}
                         tick={{ fill: t.muted, fontSize: 10 }} axisLine={{ stroke: t.border }} tickLine={false} />
-                    <YAxis tickFormatter={v => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`}
+                    <YAxis
+                        tickFormatter={v => v >= 1000 ? `$${(v / 1000).toFixed(0)}k` : `$${v}`}
                         tick={{ fill: t.muted, fontSize: 10 }} axisLine={false} tickLine={false}
                         domain={[0, maxY]} width={52} />
                     <Tooltip
                         contentStyle={{ background: t.bg1, border: `1px solid ${t.border}`, borderRadius: 8, fontSize: 12, color: t.bright }}
+                        formatter={v => [`$${(v || 0).toLocaleString()}`, "Total Debt"]}
                         labelFormatter={m => {
-                            const pt = data.find(p => p.month === m);
-                            const ev = events.find(e => e.month === m);
-                            return ev ? `${pt?.label} — ${ev.names.join(" + ")} cleared` : pt?.label ?? `Month ${m}`;
-                        }}
-                        formatter={(v, key) => {
-                            if (!debtKeys) return [`$${(v||0).toLocaleString()}`, key];
-                            const dk = debtKeys.find(d => d.id === key);
-                            return [`$${(v||0).toLocaleString()}`, dk?.name ?? key];
+                            const pt  = data.find(p => p.month === m);
+                            const ev  = events.find(e => e.month === m);
+                            const cleared = ev?.cleared?.map(c => c.name).join(" + ");
+                            return cleared ? `${pt?.label} — ✓ ${cleared}` : pt?.label ?? `Month ${m}`;
                         }}
                     />
                     {/* Today marker */}
                     <ReferenceLine x={0} stroke={t.amber} strokeDasharray="4 3"
                         label={{ value: "Today", fill: t.amber, fontSize: 10, position: "insideTopRight" }} />
-                    {/* Clearance markers — vertical lines only, no labels (names are in legend) */}
+                    {/* Clearance markers — dashed vertical lines, no text on chart */}
                     {events.map(ev => (
-                        <ReferenceLine key={ev.month} x={ev.month} stroke={t.green}
-                            strokeDasharray="3 3" strokeOpacity={0.5} />
+                        <ReferenceLine key={ev.month} x={ev.month}
+                            stroke={t.green} strokeDasharray="3 3" strokeOpacity={0.4} />
                     ))}
-                    {/* One colored line per debt */}
-                    {debtKeys.map(dk => (
-                        <Line key={dk.id} type="monotone" dataKey={dk.id}
-                            stroke={dk.color} strokeWidth={2} dot={false}
-                            activeDot={{ r: 4, fill: dk.color, strokeWidth: 0 }} />
-                    ))}
-                </LineChart>
+                    <Area type="monotone" dataKey="total"
+                        stroke="#ef4444" strokeWidth={2.5}
+                        fill="url(#debtGrad)" dot={false}
+                        activeDot={{ r: 5, fill: "#ef4444", strokeWidth: 0 }} />
+                </AreaChart>
             </ResponsiveContainer>
 
-            {/* Clearance events below chart */}
+            {/* Clearance event grid — names + dates, colored by debt */}
             {events.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.border}` }}>
-                    {events.map(ev => (
-                        <div key={ev.month} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
-                            <span style={{ color: t.green, fontWeight: 700 }}>✓</span>
-                            <span style={{ color: t.green }}>{ev.names.join(" + ")}</span>
-                            <span style={{ color: t.subtle }}>~{ev.label}</span>
-                        </div>
-                    ))}
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${t.border}` }}>
+                    <div style={{ fontSize: 10, color: t.subtle, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                        Payoff Milestones
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "6px 16px" }}>
+                        {events.map(ev =>
+                            ev.cleared.map(c => (
+                                <div key={c.name} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+                                    <span style={{ color: c.color, fontWeight: 700, fontSize: 14, lineHeight: 1 }}>✓</span>
+                                    <span style={{ color: c.color, fontWeight: 500 }}>{c.name}</span>
+                                    <span style={{ color: t.subtle, marginLeft: "auto", flexShrink: 0 }}>~{ev.label}</span>
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </div>
             )}
         </div>
@@ -403,7 +392,6 @@ export default function Plan({ state }) {
                 data={model.trajData}
                 events={model.trajEvents}
                 totalDebt={model.totalDebt}
-                debtKeys={model.debtKeys}
             />
 
             {/* Attack order — context for the chart, not instructions */}
