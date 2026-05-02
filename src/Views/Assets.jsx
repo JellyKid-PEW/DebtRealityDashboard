@@ -214,7 +214,7 @@ function AssetFormFields({ draft, setDraft }) {
         </Field>
       </div>
 
-      <Field label="Priority â would you sell this to pay down debt?">
+      <Field label="Priority — would you sell this to pay down debt?">
         <div style={{ marginTop: 4 }}>
           <PriorityToggle value={draft.priority ?? "keep"} onChange={f("priority")} />
           <p style={{ fontFamily: mono, fontSize: 10, color: t.muted, margin: "8px 0 0", lineHeight: 1.6 }}>
@@ -292,7 +292,7 @@ function AssetRow({ asset, onSave, onDelete }) {
             <div style={{ fontFamily: mono, fontSize: 10, color: t.muted }}>
               quick sale
               {haircut !== null && haircut > 0 && (
-                <span style={{ color: t.red }}> (â{fmtPct(haircut)})</span>
+                <span style={{ color: t.red }}> (−{fmtPct(haircut)})</span>
               )}
             </div>
           </div>
@@ -619,7 +619,7 @@ function CsvImport({ onImport }) {
                         padding: "5px 12px", cursor: "pointer", letterSpacing: "0.06em",
                         userSelect: "none",
                     }}>
-                        â Import CSV
+                        ↑ Import CSV
                     </span>
                 </label>
                 <button onClick={downloadTemplate} style={{
@@ -666,13 +666,13 @@ function CsvImport({ onImport }) {
     return (
         <div style={{ border: `1px solid #166534`, background: "#052e16", borderRadius: 8, padding: "14px 16px" }}>
             <div style={{ fontFamily: mono, fontSize: 11, fontWeight: 700, color: "#22c55e", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                Preview â {preview.rows.length} asset{preview.rows.length !== 1 ? "s" : ""} found
+                Preview — {preview.rows.length} asset{preview.rows.length !== 1 ? "s" : ""} found
             </div>
 
             {/* Column mapping summary */}
             <div style={{ fontFamily: mono, fontSize: 11, color: "#4ade80", marginBottom: 10, lineHeight: 1.7 }}>
                 Detected columns: {Object.entries(preview.colMap).map(([f,i]) =>
-                    `${preview.headers[i]} â ${f}`).join(" Â· ")}
+                    `${preview.headers[i]} → ${f}`).join(" · ")}
             </div>
 
             {/* First 5 rows preview */}
@@ -720,7 +720,7 @@ function CsvImport({ onImport }) {
                     border: "1px solid #166534", borderRadius: 5,
                     padding: "6px 16px", cursor: "pointer", letterSpacing: "0.06em",
                 }}>
-                    â Import {preview.rows.length} asset{preview.rows.length !== 1 ? "s" : ""}
+                    ✓ Import {preview.rows.length} asset{preview.rows.length !== 1 ? "s" : ""}
                 </button>
                 <button onClick={handleCancel} style={{
                     fontFamily: mono, fontSize: 11, color: "#4ade80",
@@ -808,8 +808,8 @@ export default function Assets({ state, onUpdate }) {
             fontFamily: mono, fontSize: 12, color: t.muted, lineHeight: 1.8,
           }}>
             {assets.length === 0
-              ? <>No assets yet.<br />Add vehicles, savings accounts, investments â anything with value.</>
-              : <>No assets with priority "{filter}" â <button onClick={() => setFilter("all")} style={{ fontFamily: mono, fontSize: 12, color: t.amber, background: "none", border: "none", cursor: "pointer", padding: 0 }}>show all</button>.</>
+              ? <>No assets yet.<br />Add vehicles, savings accounts, investments — anything with value.</>
+              : <>No assets with priority "{filter}" — <button onClick={() => setFilter("all")} style={{ fontFamily: mono, fontSize: 12, color: t.amber, background: "none", border: "none", cursor: "pointer", padding: 0 }}>show all</button>.</>
             }
           </div>
         )}

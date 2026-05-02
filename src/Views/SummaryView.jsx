@@ -16,7 +16,7 @@ const t = {
 };
 
 function fmtMoney(n) {
-  if (!isFinite(n ?? Infinity)) return "â";
+  if (!isFinite(n ?? Infinity)) return "—";
   return new Intl.NumberFormat("en-US", {
     style: "currency", currency: "USD",
     minimumFractionDigits: 0, maximumFractionDigits: 0,
@@ -187,7 +187,7 @@ function ImprovementTip({ direction, netAmount, cardSpend }) {
     ? `Reducing card spending by ${fmtMoney(Math.max(halfAmount, 50))}/month would cut the increase roughly in half.`
     : `You're on the right track. Staying consistent matters more than any single big move.`;
 
-  const icon  = isIncreasing ? "ð¡" : "â";
+  const icon  = isIncreasing ? "💡" : "✓";
   const color = isIncreasing ? t.amber : t.green;
   const bg    = isIncreasing ? "#f59e0b0d" : "#22c55e0d";
   const brd   = isIncreasing ? "#92400e" : "#166534";
@@ -231,9 +231,9 @@ function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
   const isNegative = cashFlow < 0;
   const color = isNegative ? t.red : cashFlow < 300 ? t.amber : t.green;
   const label = isNegative
-    ? "Things are tight â spending exceeds income"
+    ? "Things are tight — spending exceeds income"
     : cashFlow < 300
-    ? "Not much buffer â watch discretionary spending"
+    ? "Not much buffer — watch discretionary spending"
     : "Good breathing room";
 
   return (
@@ -255,7 +255,7 @@ function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
         fontWeight: 700, color,
         lineHeight: 1.1, marginBottom: 12,
       }}>
-        {isNegative ? `â${fmtMoney(Math.abs(cashFlow))}` : fmtMoney(cashFlow)}
+        {isNegative ? `−${fmtMoney(Math.abs(cashFlow))}` : fmtMoney(cashFlow)}
       </div>
 
       {/* Gauge bar */}
@@ -408,10 +408,10 @@ export default function SummaryView({ state }) {
         letterSpacing: "0.16em", textTransform: "uppercase",
         marginBottom: 4,
       }}>
-        Household Summary Â· Summary View
+        Household Summary · Summary View
       </div>
 
-      {/* ââ PRIMARY BANNER ââââââââââââââââââââââââââââââââ */}
+      {/* ── PRIMARY BANNER ──────────────────────────────── */}
       <DirectionBanner
         direction={direction}
         amount={amount}
@@ -419,7 +419,7 @@ export default function SummaryView({ state }) {
         cardPayments={totalCardPayments}
       />
 
-      {/* ââ KEY NUMBERS âââââââââââââââââââââââââââââââââââ */}
+      {/* ── KEY NUMBERS ─────────────────────────────────── */}
       <div className="pv-stats">
         <BigStat
           label="Money coming in"
@@ -441,7 +441,7 @@ export default function SummaryView({ state }) {
             value={fmtMoney(attackSurplus)}
             valueColor={t.amber}
             sub="Available above minimums to attack debt each month"
-            icon="ð¯"
+            icon="🎯"
           />
         )}
         {focusDebt && (
@@ -449,30 +449,30 @@ export default function SummaryView({ state }) {
             label="Focus debt now"
             value={focusDebt.name}
             valueColor={t.amber}
-            sub={`${fmtMoney(focusDebt.balance)} at ${focusDebt.currentApr.toFixed(1)}% APR â ${fmtMoney(focusDebt.balance * focusDebt.currentApr / 100 / 12)}/mo interest`}
-            icon="ð¯"
+            sub={`${fmtMoney(focusDebt.balance)} at ${focusDebt.currentApr.toFixed(1)}% APR — ${fmtMoney(focusDebt.balance * focusDebt.currentApr / 100 / 12)}/mo interest`}
+            icon="🎯"
           />
         )}
       </div>
 
-      {/* ââ BREATHING ROOM ââââââââââââââââââââââââââââââââ */}
+      {/* ── BREATHING ROOM ──────────────────────────────── */}
       <BreathingRoomGauge cashFlow={cashFlow} monthlyIncome={monthlyIncome} />
 
-      {/* ââ IMPROVEMENT TIP âââââââââââââââââââââââââââââââ */}
+      {/* ── IMPROVEMENT TIP ─────────────────────────────── */}
       <ImprovementTip
         direction={direction}
         netAmount={amount}
         cardSpend={totalCardSpend}
       />
 
-      {/* ââ FOOTER NOTE âââââââââââââââââââââââââââââââââââ */}
+      {/* ── FOOTER NOTE ─────────────────────────────────── */}
       <div style={{
         fontFamily: mono, fontSize: 10, color: t.muted,
         textAlign: "center", lineHeight: 1.7,
         borderTop: `1px solid ${t.border}`, paddingTop: 16, marginTop: 4,
       }}>
         Numbers update automatically as your data changes.
-        This view shows the big picture â no jargon, no tables.
+        This view shows the big picture — no jargon, no tables.
       </div>
     </div>
   );

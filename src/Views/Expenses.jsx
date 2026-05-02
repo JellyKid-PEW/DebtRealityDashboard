@@ -381,7 +381,7 @@ function TotalsHeader({ expenses, monthlyIncome }) {
         {[
           { label: "Monthly Baseline", value: totalMonthly, color: t.amber },
           { label: "Essential", value: essentialMonthly, color: t.teal },
-          { label: "% of Income", value: monthlyIncome > 0 ? `${Math.round(totalMonthly / monthlyIncome * 100)}%` : "â", color: totalMonthly > monthlyIncome * 0.7 ? t.red : totalMonthly > monthlyIncome * 0.5 ? t.amber : t.subtle, isText: true },
+          { label: "% of Income", value: monthlyIncome > 0 ? `${Math.round(totalMonthly / monthlyIncome * 100)}%` : "—", color: totalMonthly > monthlyIncome * 0.7 ? t.red : totalMonthly > monthlyIncome * 0.5 ? t.amber : t.subtle, isText: true },
           { label: "Discretionary", value: discretionaryMonthly, color: t.subtle },
         ].map(({ label, value, color, isText }) => (
           <div key={label} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
