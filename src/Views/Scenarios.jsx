@@ -10,7 +10,7 @@ import {
     ResponsiveContainer,
 } from "recharts";
 
-// ─── STYLE TOKENS ─────────────────────────────────────────────────────────────
+// ─── STYLE TOKENS ──────────────────────────────────────────────────────────────
 
 const t = {
     bg0: "#080b10",
@@ -42,7 +42,7 @@ const inputStyle = {
 
 const selectStyle = { ...inputStyle };
 
-// ─── SHARED HELPERS ───────────────────────────────────────────────────────────
+// ─── SHARED HELPERS ────────────────────────────────────────────────────────────
 
 function fmtMoney(n) {
     const v = Number(n) || 0;
@@ -88,7 +88,7 @@ function monthLabel(offset, nowMonth) {
     });
 }
 
-// ─── DEBT BUILDING ────────────────────────────────────────────────────────────
+// ─── DEBT BUILDING ─────────────────────────────────────────────────────────────
 
 function getPromoEndDate(card) {
     return (
@@ -156,7 +156,7 @@ function sortedForStrategy(debts, strategy, mOffset, nowMonth) {
     });
 }
 
-// ─── TRAJECTORY ENGINE ────────────────────────────────────────────────────────
+// ─── TRAJECTORY ENGINE ─────────────────────────────────────────────────────────
 // Used by every scenario. Returns month-by-month [{month, label, total}]
 
 function buildTrajectory(debts, extraPool, strategy, nowMonth, maxMonths = 72) {
@@ -205,7 +205,7 @@ function buildTrajectory(debts, extraPool, strategy, nowMonth, maxMonths = 72) {
     return data;
 }
 
-// ─── COMPARISON CHART ─────────────────────────────────────────────────────────
+// ─── COMPARISON CHART ──────────────────────────────────────────────────────────
 
 function ComparisonChart({ baseline, scenario, scenarioLabel }) {
     if (!baseline.length) return null;
@@ -249,7 +249,7 @@ function ComparisonChart({ baseline, scenario, scenarioLabel }) {
                         Trajectory Comparison
                     </div>
                     <div style={{ fontSize: 12, color: t.muted }}>
-                        Red = current plan Â· Blue = {scenarioLabel}
+                        Red = current plan · Blue = {scenarioLabel}
                     </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -307,7 +307,7 @@ function ComparisonChart({ baseline, scenario, scenarioLabel }) {
     );
 }
 
-// ─── SHARED UI ────────────────────────────────────────────────────────────────
+// ─── SHARED UI ─────────────────────────────────────────────────────────────────
 
 function StatCard({ title, value, sub, color = t.bright }) {
     return (
@@ -976,10 +976,10 @@ function ScenarioPurchaseCost({ state }) {
     );
 }
 
-// ─── MAIN EXPORT ──────────────────────────────────────────────────────────────
+// ─── MAIN EXPORT ───────────────────────────────────────────────────────────────
 
 
-// ─── CONSOLIDATION RECOMMENDER ENGINE ────────────────────────────────────────
+// ─── CONSOLIDATION RECOMMENDER ENGINE ──────────────────────────────────────────
 
 function amortizedPayment(balance, aprPct, termMonths) {
     const r = aprPct / 100 / 12;
@@ -1172,7 +1172,7 @@ function findBestConfigurations(debts, loanApr, termMonths, origFee, extraPool, 
         .slice(0, 5);
 }
 
-// ─── CONSOLIDATION RECOMMENDER UI ────────────────────────────────────────────
+// ─── CONSOLIDATION RECOMMENDER UI ──────────────────────────────────────────────
 
 function ScenarioConsolidationRecommender({ debts, extraPool, strategy, nowMonth }) {
     const [loanApr, setLoanApr] = useState(12);

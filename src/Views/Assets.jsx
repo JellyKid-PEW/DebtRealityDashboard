@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 
-// ─── S ───────────────────────
+// ─── STYLE TOKENS ──────────────────────────────────────────────────────────────
 const mono = "'IBM Plex Mono', 'Courier New', monospace";
 
 const t = {
@@ -29,7 +29,7 @@ function fmtPct(n) {
   return `${(n * 100).toFixed(0)}%`;
 }
 
-// ─── S ───────────────────────
+// ─── INPUT STYLES ──────────────────────────────────────────────────────────────
 
 const inputStyle = {
   fontFamily: mono, fontSize: 12,
@@ -126,7 +126,7 @@ function Expandable({ open, children }) {
   );
 }
 
-// ─── E ───────────────────────
+// ─── CONSTANTS ─────────────────────────────────────────────────────────────────
 
 const PRIORITIES = ["keep", "maybe", "sell"];
 
@@ -166,7 +166,7 @@ function PriorityBadge({ priority }) {
   );
 }
 
-// ─── S ───────────────────────
+// ─── ASSET CATEGORIES ──────────────────────────────────────────────────────────
 
 const ASSET_CATEGORIES = [
   "Vehicle", "Real Estate", "Investment Account", "Savings",
@@ -174,7 +174,7 @@ const ASSET_CATEGORIES = [
   "Art", "Business", "Other",
 ];
 
-// ─── S ───────────────────────
+// ─── ASSET FORM FIELDS ─────────────────────────────────────────────────────────
 
 function AssetFormFields({ draft, setDraft }) {
   const f = (k) => (v) => setDraft(d => ({ ...d, [k]: v }));
@@ -228,7 +228,7 @@ function AssetFormFields({ draft, setDraft }) {
   );
 }
 
-// ─── W ───────────────────────
+// ─── ASSET ROW ─────────────────────────────────────────────────────────────────
 
 function AssetRow({ asset, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
@@ -342,7 +342,7 @@ function AddAssetRow({ onSave, onCancel }) {
   );
 }
 
-// ─── R ───────────────────────
+// ─── TOTALS HEADER ─────────────────────────────────────────────────────────────
 
 function TotalsHeader({ assets }) {
   const totalEstimated = useMemo(
@@ -426,7 +426,7 @@ function TotalsHeader({ assets }) {
   );
 }
 
-// ─── R ───────────────────────
+// ─── PRIORITY FILTER ───────────────────────────────────────────────────────────
 
 function PriorityFilter({ active, onChange }) {
   const options = [
@@ -458,10 +458,10 @@ function PriorityFilter({ active, onChange }) {
   );
 }
 
-// ─── T ───────────────────────
+// ─── MAIN EXPORT ───────────────────────────────────────────────────────────────
 
 
-// ─── CSV IMPORT ENGINE ────────────────────────────────────────────────────────
+// ─── CSV IMPORT ENGINE ─────────────────────────────────────────────────────────
 
 // Column name aliases ─ maps common user column names to our field names
 const COL_ALIASES = {
@@ -560,7 +560,7 @@ function downloadTemplate() {
     URL.revokeObjectURL(url);
 }
 
-// ─── CSV IMPORT UI ────────────────────────────────────────────────────────────
+// ─── CSV IMPORT UI ─────────────────────────────────────────────────────────────
 
 function CsvImport({ onImport }) {
     const [stage, setStage] = useState("idle"); // idle | preview | error

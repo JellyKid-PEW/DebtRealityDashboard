@@ -114,7 +114,7 @@ function importSummary(state) {
     return parts.length ? `Loaded: ${parts.join(", ")}` : "Loaded";
 }
 
-// ─── TABS ─────────────────────────────────────────────────────────────────────
+// ─── TABS ──────────────────────────────────────────────────────────────────────
 
 const TABS = ["Attack Map", "Trajectory", "Debts", "Expenses", "Assets", "Scenarios", "Summary"];
 

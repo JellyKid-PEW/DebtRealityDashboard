@@ -23,7 +23,7 @@ function fmtMoney(n) {
   }).format(n ?? 0);
 }
 
-// ─── PRIMITIVES ────────────────────────────────────────────────────────────
+// ─── PRIMITIVES ────────────────────────────────────────────────────────────────
 
 const inputStyle = {
   fontFamily: mono, fontSize: 12,
@@ -173,7 +173,7 @@ function CategoryBadge({ category }) {
   );
 }
 
-// ─── FREQUENCY DISPLAY ────────────────────────────────────────────────────────────
+// ─── FREQUENCY DISPLAY ─────────────────────────────────────────────────────────
 
 const FREQ_OPTIONS = ["weekly", "biweekly", "monthly", "annual"];
 
@@ -181,7 +181,7 @@ function freqLabel(freq) {
   return { weekly: "wk", biweekly: "2wk", monthly: "mo", annual: "yr" }[freq] ?? freq;
 }
 
-// ─── EXPENSE FORM FIELDS ────────────────────────────────────────────────────────────
+// ─── EXPENSE FORM FIELDS ───────────────────────────────────────────────────────
 
 const COMMON_CATEGORIES = [
   "Housing", "Food & Groceries", "Transport", "Utilities",
@@ -238,7 +238,7 @@ function ExpenseFormFields({ draft, setDraft }) {
   );
 }
 
-// ─── EXPENSE ROW ────────────────────────────────────────────────────────────
+// ─── EXPENSE ROW ───────────────────────────────────────────────────────────────
 
 function ExpenseRow({ expense, onSave, onDelete }) {
   const [editing, setEditing] = useState(false);
@@ -345,7 +345,7 @@ function AddExpenseRow({ onSave, onCancel }) {
   );
 }
 
-// ─── TOTALS HEADER ────────────────────────────────────────────────────────────
+// ─── TOTALS HEADER ─────────────────────────────────────────────────────────────
 
 function TotalsHeader({ expenses, monthlyIncome }) {
   const totalMonthly = useMemo(
@@ -418,7 +418,7 @@ function TotalsHeader({ expenses, monthlyIncome }) {
   );
 }
 
-// ─── LEGEND ────────────────────────────────────────────────────────────
+// ─── LEGEND ────────────────────────────────────────────────────────────────────
 
 function Legend() {
   return (
@@ -436,7 +436,7 @@ function Legend() {
   );
 }
 
-// ─── MAIN EXPORT ────────────────────────────────────────────────────────────
+// ─── MAIN EXPORT ───────────────────────────────────────────────────────────────
 
 export default function Expenses({ state, onUpdate }) {
   const [adding, setAdding] = useState(false);

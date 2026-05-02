@@ -14,7 +14,7 @@
 import React, { useMemo, useState } from "react";
 import { normalizeToMonthly, normalizeDebtsForRanking, rankDebtsCanonical } from "../calculations.js";
 
-// ─── TOKENS ───────────────────────────────────────────────────────────────────
+// ─── TOKENS ────────────────────────────────────────────────────────────────────
 const t = {
     // Backgrounds
     bg0: "#080b10",
@@ -44,7 +44,7 @@ const t = {
     blueBg: "#0c1a2e",
 };
 
-// ─── HELPERS ──────────────────────────────────────────────────────────────────
+// ─── HELPERS ───────────────────────────────────────────────────────────────────
 /** Format as whole-dollar amount: $1,234 */
 const fmt   = n => `$${Math.abs(Number(n) || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 /** Format as dollar amount with cents: $1,234.56 */
@@ -100,7 +100,7 @@ function aprAt(d, monthOffset) {
     return monthOffset < monthsUntilExpiry ? promo : regular;
 }
 
-// ─── PRIORITY ENGINE ──────────────────────────────────────────────────────────
+// ─── PRIORITY ENGINE ───────────────────────────────────────────────────────────
 // Delegates to shared canonical ranking in calculations.js.
 // scoreDebt kept as a local wrapper for use in monthly re-ranking inside simulate().
 function scoreDebt(d, monthOffset=0) {
@@ -123,7 +123,7 @@ function prioritizeDebts(cards, loans) {
     return rankDebtsCanonical(normalizeDebtsForRanking(cards, loans).filter(d => d.balance > 0));
 }
 
-// ─── SURPLUS ──────────────────────────────────────────────────────────────────
+// ─── SURPLUS ───────────────────────────────────────────────────────────────────
 /** income - essential expenses - all minimums = monthly attack surplus. */
 function calcSurplus(state) {
     const income = (state.incomes ?? [])
@@ -138,7 +138,7 @@ function calcSurplus(state) {
     return { income, essential, minimums, surplus: Math.max(0, income - essential - minimums) };
 }
 
-// ─── SAFE TO PAY ─────────────────────────────────────────────────────────────
+// ─── SAFE TO PAY ───────────────────────────────────────────────────────────────
 // Auto-calculates from state. Only savings balance is user-entered.
 // Estimates what falls before next paycheck based on income frequency.
 function calcSafeToPay(state) {
@@ -208,7 +208,7 @@ function calcSafeToPay(state) {
     };
 }
 
-// ─── PROMO DEADLINES ─────────────────────────────────────────────────────────
+// ─── PROMO DEADLINES ───────────────────────────────────────────────────────────
 /** Returns active promo debts sorted by urgency (soonest first). */
 function calcPromos(cards) {
     return (cards ?? [])
@@ -229,7 +229,7 @@ function calcPromos(cards) {
         .sort((a, b) => a.monthsRemaining - b.monthsRemaining);
 }
 
-// ─── MIN PAYMENT DANGER ───────────────────────────────────────────────────────
+// ─── MIN PAYMENT DANGER ────────────────────────────────────────────────────────
 /** Identifies debts where minimum payments are mostly or entirely interest. */
 function calcDangers(debts) {
     return debts
@@ -251,7 +251,7 @@ function calcDangers(debts) {
         .filter(d => d.level);
 }
 
-// ─── RISK FLAGS ───────────────────────────────────────────────────────────────
+// ─── RISK FLAGS ────────────────────────────────────────────────────────────────
 /** Generates risk flags for the dashboard. Returns flags[] and overall severity. */
 function calcRisk(state, surplus, prioritized, promos) {
     const flags = [];
@@ -302,7 +302,7 @@ function calcRisk(state, surplus, prioritized, promos) {
     return {flags,overall:redCount>=2?"red":redCount>=1?"red":flags.length>=2?"amber":"green"};
 }
 
-// ─── MILESTONES ───────────────────────────────────────────────────────────────
+// ─── MILESTONES ────────────────────────────────────────────────────────────────
 /** Computes completed wins and next 4 upcoming milestone targets. */
 function calcMilestones(state, prioritized) {
     const cards = state.creditCards ?? [];
@@ -330,7 +330,7 @@ function calcMilestones(state, prioritized) {
     return { completed, upcoming: upcoming.slice(0, 4) };
 }
 
-// ─── SPENDING LEAKS ───────────────────────────────────────────────────────────
+// ─── SPENDING LEAKS ────────────────────────────────────────────────────────────
 function calcLeaks(state, surplus, prioritized, lumpSum) {
     const bycat={};
     (state.expenses??[]).forEach(e=>{
@@ -358,7 +358,7 @@ function calcLeaks(state, surplus, prioritized, lumpSum) {
       .sort((a,b)=>b.optional-a.optional).slice(0,4);
 }
 
-// ─── SIMULATION ───────────────────────────────────────────────────────────────
+// ─── SIMULATION ────────────────────────────────────────────────────────────────
 function simulate(prioritized,surplus,lumpSum,maxMonths=60) {
     if(!prioritized.length||surplus<=0) return [];
     let debts=prioritized.map(d=>({...d,balance:Number(d.balance)||0}));
@@ -454,7 +454,7 @@ function simulate(prioritized,surplus,lumpSum,maxMonths=60) {
     return months;
 }
 
-// ─── IMPORT DELTA ─────────────────────────────────────────────────────────────
+// ─── IMPORT DELTA ──────────────────────────────────────────────────────────────
 // Compares current state to previous snapshot to show what changed since last import
 function calcImportDelta(state, prioritized) {
     const prev = state.prevSnapshot;
@@ -479,7 +479,7 @@ function calcImportDelta(state, prioritized) {
     return { totalDelta, prevTotal, currentTotal, debtDeltas, newCharges, daysSince };
 }
 
-// ─── PLAN MONTH NUMBER ────────────────────────────────────────────────────────
+// ─── PLAN MONTH NUMBER ─────────────────────────────────────────────────────────
 // Calculates which month of the plan we're actually in, based on planStartDate
 function calcPlanMonth(state) {
     if (!state.planStartDate) return 1;
@@ -489,7 +489,7 @@ function calcPlanMonth(state) {
     return Math.max(1, elapsed + 1);
 }
 
-// ─── INTEREST COST COMPARISON ─────────────────────────────────────────────────
+// ─── INTEREST COST COMPARISON ──────────────────────────────────────────────────
 // Compares total interest: attack plan vs minimums-only
 function calcInterestComparison(prioritized, surplus, lumpSum) {
     if (!prioritized.length) return null;
@@ -533,7 +533,7 @@ function calcInterestComparison(prioritized, surplus, lumpSum) {
     };
 }
 
-// ─── COMMITMENT ENGINE ───────────────────────────────────────────────────────
+// ─── COMMITMENT ENGINE ─────────────────────────────────────────────────────────
 
 // Build a commitment from the current month 1 simulation
 function buildCommitment(months, prioritized, planMonth) {
@@ -602,7 +602,7 @@ function calcCommitmentVerification(commitment, prioritized) {
     };
 }
 
-// ─── INCOME SANITY CHECK ─────────────────────────────────────────────────────
+// ─── INCOME SANITY CHECK ───────────────────────────────────────────────────────
 function checkIncomeSanity(incomes) {
     const flags = [];
     (incomes ?? []).forEach(inc => {
@@ -629,7 +629,7 @@ function checkIncomeSanity(incomes) {
     return flags;
 }
 
-// ─── SELLABLE ASSETS ─────────────────────────────────────────────────────────
+// ─── SELLABLE ASSETS ───────────────────────────────────────────────────────────
 function calcSellableAssets(state, prioritized, surplus, lumpSum) {
     const assets = (state.assets ?? []);
     const sellable = assets.filter(a => a.priority === "sell" || a.priority === "maybe");
@@ -654,7 +654,7 @@ function calcSellableAssets(state, prioritized, surplus, lumpSum) {
     };
 }
 
-// ─── COMMIT HISTORY ──────────────────────────────────────────────────────────
+// ─── COMMIT HISTORY ────────────────────────────────────────────────────────────
 function calcCommitStatus(state) {
     const history = state.commitHistory ?? [];
     const commitment = state.commitment;
@@ -688,7 +688,7 @@ function calcStreak(history) {
     return streak;
 }
 
-// ─── UI PRIMITIVES ────────────────────────────────────────────────────────────
+// ─── UI PRIMITIVES ─────────────────────────────────────────────────────────────
 function Card({children,border=t.border,bg=t.bg1,padding=16}) {
     return <div style={{border:`1px solid ${border}`,background:bg,borderRadius:12,padding}}>{children}</div>;
 }
@@ -733,7 +733,7 @@ function ILine({item}) {
     </div>;
 }
 
-// ─── SECTIONS ─────────────────────────────────────────────────────────────────
+// ─── SECTIONS ──────────────────────────────────────────────────────────────────
 
 function TodayCard({month,lumpSum,focus,emergencyTarget,surplus}) {
     if(!focus||!month) return null;
@@ -768,7 +768,7 @@ function TodayCard({month,lumpSum,focus,emergencyTarget,surplus}) {
 function SafePay({safeData,state,onUpdate}) {
     const [showHow,setShowHow]=useState(false);
     const freqLabel = {weekly:"weekly",biweekly:"biweekly",monthly:"monthly"}[safeData.freq]||"monthly";
-    const fractionLabel = safeData.freq==="weekly"?"¼ of monthly":safeData.freq==="biweekly"?"½ of monthly":"full monthly";
+    const fractionLabel = safeData.freq==="weekly"?"Â¼ of monthly":safeData.freq==="biweekly"?"Â½ of monthly":"full monthly";
 
     return (
         <Card border={t.border}>
@@ -1296,7 +1296,7 @@ function Budget({income,essential,minimums,surplus}) {
     );
 }
 
-// ─── COMMITMENT UI ───────────────────────────────────────────────────────────
+// ─── COMMITMENT UI ─────────────────────────────────────────────────────────────
 
 function CommitButton({months, prioritized, planMonth, state, onUpdate}) {
     const commitment = state.commitment;
@@ -1456,7 +1456,7 @@ function CommitmentVerification({verification}) {
     );
 }
 
-// ─── IMPORT DELTA COMPONENT ──────────────────────────────────────────────────
+// ─── IMPORT DELTA COMPONENT ────────────────────────────────────────────────────
 function ImportDelta({delta}) {
     if (!delta) return null;
     const isGood = delta.totalDelta > 0;
@@ -1507,7 +1507,7 @@ function ImportDelta({delta}) {
     );
 }
 
-// ─── INTEREST COMPARISON COMPONENT ───────────────────────────────────────────
+// ─── INTEREST COMPARISON COMPONENT ─────────────────────────────────────────────
 function InterestComparison({comparison}) {
     if (!comparison) return null;
     return (
@@ -1540,7 +1540,7 @@ function InterestComparison({comparison}) {
     );
 }
 
-// ─── INCOME EDIT COMPONENT ────────────────────────────────────────────────────
+// ─── INCOME EDIT COMPONENT ─────────────────────────────────────────────────────
 function IncomeEdit({state,onUpdate}) {
     const [editing,setEditing]=useState(null);
     const incomes=state.incomes??[];
@@ -1613,8 +1613,8 @@ function IncomeEditRow({inc,onSave,onCancel}) {
     );
 }
 
-// ─── MAIN ─────────────────────────────────────────────────────────────────────
-// ─── INCOME SANITY WARNING ───────────────────────────────────────────────────
+// ─── MAIN ──────────────────────────────────────────────────────────────────────
+// ─── INCOME SANITY WARNING ─────────────────────────────────────────────────────
 function IncomeSanityWarning({flags}) {
     if (!flags.length) return null;
     return (
@@ -1634,7 +1634,7 @@ function IncomeSanityWarning({flags}) {
     );
 }
 
-// ─── SELLABLE ASSETS ─────────────────────────────────────────────────────────
+// ─── SELLABLE ASSETS ───────────────────────────────────────────────────────────
 function SellableAssetsCard({sellableData, lumpSum}) {
     if (!sellableData) return null;
     const {sellItems, maybeItems, sellTotal, maybeTotal, pctOfDebt} = sellableData;
@@ -1682,7 +1682,7 @@ function SellableAssetsCard({sellableData, lumpSum}) {
     );
 }
 
-// ─── COMMIT HISTORY TABLE ─────────────────────────────────────────────────────
+// ─── COMMIT HISTORY TABLE ──────────────────────────────────────────────────────
 function CommitHistoryTable({commitStatus, state, onUpdate, months, prioritized, planMonth}) {
     const {history, needsCommit, daysSinceLastActivity, streak} = commitStatus;
 
@@ -1781,7 +1781,7 @@ function CommitHistoryTable({commitStatus, state, onUpdate, months, prioritized,
     );
 }
 
-// ─── ONBOARDING ──────────────────────────────────────────────────────────────
+// ─── ONBOARDING ────────────────────────────────────────────────────────────────
 function Onboarding({state, tab, setTab}) {
     const hasIncome = (state.incomes??[]).length > 0;
     const hasDebts = (state.creditCards??[]).length > 0 || (state.loans??[]).length > 0;
@@ -1890,7 +1890,7 @@ function DebtFreeDate({debtFreeLabel, debtFreeMonth, planMonth}) {
 }
 
 export default function AttackMap({state,onUpdate,setTab}) {
-    // ─── MEMOIZATION STRATEGY ────────────────────────────────────────────────
+    // ─── MEMOIZATION STRATEGY ──────────────────────────────────────────────────────
     // Split into two memos to avoid running expensive simulations on every keystroke.
     //
     // financialKey: stable JSON key of financial data only. Changes only when

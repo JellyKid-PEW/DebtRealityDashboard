@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { normalizeToMonthly, normalizeDebtsForRanking, rankDebtsCanonical } from "../calculations.js";
 
-// ─── S ───────────────────────
+// ─── STYLE TOKENS ──────────────────────────────────────────────────────────────
 const mono = "'IBM Plex Mono', 'Courier New', monospace";
 const display = "'Georgia', 'Times New Roman', serif";
 
@@ -23,7 +23,7 @@ function fmtMoney(n) {
   }).format(Math.abs(n ?? 0));
 }
 
-// ─── D ───────────────────────
+// ─── COMPONENTS ────────────────────────────────────────────────────────────────
 
 function BigStat({ label, value, valueColor, sub, icon }) {
   return (
@@ -60,7 +60,7 @@ function BigStat({ label, value, valueColor, sub, icon }) {
   );
 }
 
-// ─── R ───────────────────────
+// ─── DIRECTION BANNER ──────────────────────────────────────────────────────────
 
 const BANNER = {
   increasing: {
@@ -177,7 +177,7 @@ function DirectionBanner({ direction, amount, cardSpend, cardPayments }) {
   );
 }
 
-// ─── P ───────────────────────
+// ─── IMPROVEMENT TIP ───────────────────────────────────────────────────────────
 
 function ImprovementTip({ direction, netAmount, cardSpend }) {
   const isIncreasing = direction === "increasing";
@@ -224,7 +224,7 @@ function ImprovementTip({ direction, netAmount, cardSpend }) {
   );
 }
 
-// ─── L ───────────────────────
+// ─── BREATHING ROOM GAUGE ──────────────────────────────────────────────────────
 
 function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
   const pct = monthlyIncome > 0 ? Math.max(0, Math.min(100, (cashFlow / monthlyIncome) * 100)) : 0;
@@ -242,7 +242,7 @@ function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
       borderRadius: 12, padding: "24px 28px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 18 }}>ð¬ï¸</span>
+        <span style={{ fontSize: 18 }}>🌬️</span>
         <span style={{
           fontFamily: mono, fontSize: 11, color: t.subtle,
           letterSpacing: "0.14em", textTransform: "uppercase",
@@ -289,7 +289,7 @@ function BreathingRoomGauge({ cashFlow, monthlyIncome }) {
   );
 }
 
-// ─── E ───────────────────────
+// ─── EMPTY STATE ───────────────────────────────────────────────────────────────
 
 function EmptySummaryView() {
   return (
@@ -298,7 +298,7 @@ function EmptySummaryView() {
       justifyContent: "center", minHeight: 400, gap: 20, textAlign: "center",
       padding: "48px 24px",
     }}>
-      <span style={{ fontSize: 48 }}>ð </span>
+      <span style={{ fontSize: 48 }}>🏠</span>
       <div>
         <p style={{
           fontFamily: display, fontSize: 22, color: t.bright,
@@ -316,7 +316,7 @@ function EmptySummaryView() {
   );
 }
 
-// ─── T ───────────────────────
+// ─── MAIN EXPORT ───────────────────────────────────────────────────────────────
 
 export default function SummaryView({ state }) {
   const calc = useMemo(() => {
@@ -426,14 +426,14 @@ export default function SummaryView({ state }) {
           value={fmtMoney(monthlyIncome)}
           valueColor={t.green}
           sub="Combined household income each month"
-          icon="ðµ"
+          icon="💵"
         />
         <BigStat
           label="Total debt owed"
           value={fmtMoney(totalDebt)}
           valueColor={t.red}
           sub="All cards and loans combined"
-          icon="ð"
+          icon="📋"
         />
         {attackSurplus > 0 && (
           <BigStat

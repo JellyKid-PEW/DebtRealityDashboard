@@ -838,7 +838,7 @@ function LoanRow({ loan, onSave, onDelete, draggableProps }) {
 }
 
 
-// ─── QUICK BALANCE UPDATE ─────────────────────────────────────────────────────
+// ─── QUICK BALANCE UPDATE ──────────────────────────────────────────────────────
 // Shows all debts as inline editable balances — one screen, one save
 function QuickBalanceUpdate({ cards, loans, onSaveCards, onSaveLoans, onClose }) {
     const [cardBalances, setCardBalances] = useState(

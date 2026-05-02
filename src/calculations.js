@@ -12,7 +12,7 @@
  *   calcAll                 — convenience wrapper for the App header display
  */
 
-// ─── FREQUENCY NORMALIZATION ──────────────────────────────────────────────────
+// ─── FREQUENCY NORMALIZATION ───────────────────────────────────────────────────
 
 /**
  * Convert any income or expense amount to its monthly equivalent.
@@ -37,7 +37,7 @@ export function normalizeToMonthly(amount, frequency) {
     return (amount ?? 0) * (multipliers[frequency] ?? 1);
 }
 
-// ─── INCOME ───────────────────────────────────────────────────────────────────
+// ─── INCOME ────────────────────────────────────────────────────────────────────
 
 /**
  * Sum all income sources to a combined monthly figure.
@@ -52,7 +52,7 @@ export function calcMonthlyIncome(incomes) {
     );
 }
 
-// ─── SHARED DEBT NORMALIZATION & RANKING ─────────────────────────────────────
+// ─── SHARED DEBT NORMALIZATION & RANKING ───────────────────────────────────────
 //
 // These two functions are the single source of truth for how debts are shaped
 // and ordered throughout the app. Every view — AttackMap, Trajectory,
@@ -203,7 +203,7 @@ export function rankDebtsCanonical(debts) {
     });
 }
 
-// ─── APP HEADER ───────────────────────────────────────────────────────────────
+// ─── APP HEADER ────────────────────────────────────────────────────────────────
 
 /**
  * Minimal calculation set used by the App shell header display.
